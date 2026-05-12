@@ -5,15 +5,25 @@
 
 ## What this prompt does
 
-Runs every Sunday at 9pm PST. One Sonnet 4.6 call. Looks at:
+Runs every **Friday at 9pm PST**. One Sonnet 4.6 call. Looks at:
 
 1. **The last 7 days of raw data** — transcripts, structured rows (health_logs, food_log_items, workouts, supplements, interventions).
-2. **The last 8 weekly summaries** — for cross-domain correlations across recent history.
-3. **A static background block** about Jon — prompt-cached separately for ~90% discount on repeat input.
+2. **A structured aggregate of the last 8-12 weeks** — pulled directly from the database, not LLM-summarized. This preserves event-level detail with dates so `n` can grow cumulatively across weeks for cross-domain findings.
+3. **The active interventions block** — what Jon is currently trying (see below).
+4. **A user background block** — Jon's health profile, medical history, uploaded docs (see below). Prompt-cached.
 
-Returns a structured JSON document containing one weekly summary + up to 3 intra-week patterns + up to 2 cross-domain patterns. Each pattern is observational, cites underlying data, and declares `n`. Findings with `n < 5` are auto-tagged `low_n`.
+Returns a structured JSON document containing one weekly narrative summary + up to 3 intra-week patterns + up to 2 cross-domain patterns. Each pattern is observational, cites underlying data, and declares `n`. Findings with `n < 5` are auto-tagged `low_n`.
 
-After this Sonnet call, a separate Haiku call writes a ~500-token summary into `summaries(scope='weekly')` so next week's run has another entry of history.
+After this Sonnet call, a separate Haiku call generates a longer human-readable weekly recap (no token cap — make it as informative as it needs to be) and writes it to `summaries(scope='weekly')`. That summary is **for human review on the dashboard**, not for the next week's cross-domain analysis (we use structured queries for that).
+
+## How `n` works — important
+
+- **Intra-week findings:** `n` = number of events in the last 7 days.
+  - "Headaches: 4 this week vs 0 prior 6 weeks" → n=4.
+- **Cross-domain findings:** `n` = number of events accumulated across the entire history window (typically 8-12 weeks).
+  - "Bean lunch → high-quality BJJ next day, 4 of 5 instances over 10 weeks" → n=5 (events accumulated over the window).
+
+`n` grows cumulatively for cross-domain findings **because we feed Sonnet the structured event-level data from the full window**, not a Haiku-compressed summary. Compression would lose the dates and tags needed to count events later.
 
 -----
 
@@ -128,41 +138,112 @@ arrays. Do not pad.
 
 -----
 
-## Input shape (what gets sent each Sunday)
+## Input shape (what gets sent each Friday)
 
 The prompt body that follows the system message:
 
 ```
-# User background (prompt-cached separately)
-{static background block from a server-side template — see below}
+# User background (prompt-cached separately — can be large)
+{users.profile_md, plus extracted text from medical_documents}
 
 # Active interventions
-{JSON array of rows from interventions where status='active'}
+{JSON array of rows from interventions where status='active',
+ each with name, type, started_at, days_running, expected_window_days}
 
-# Last 7 days of raw data
-{JSON array of entries with joined health_logs, food_log_items,
- workout_sessions/exercises/sets, supplement_logs}
+# Last 7 days of raw data (intra-week analysis input)
+{JSON array of entries joined with health_logs, food_log_items,
+ workout_sessions/exercises/sets, supplement_logs, intervention starts/stops}
 
-# Prior 8 weekly summaries (oldest first)
-{array of {window_start, window_end, body} from summaries
- where scope='weekly' order by period_start asc limit 8}
+# Last 8-12 weeks of structured aggregate (cross-domain analysis input)
+{
+  "window_start": ISO,
+  "window_end": ISO,
+  "food_tag_occurrences": [
+    {"date": "2026-04-12", "tag": "beans", "portion": "large bowl"},
+    {"date": "2026-04-15", "tag": "ferments", ...},
+    ...
+  ],
+  "symptom_occurrences": [
+    {"date": "2026-04-18", "symptom": "headache"},
+    ...
+  ],
+  "workout_summary": [
+    {"date": "2026-04-20", "session_quality": 8, "muscle_groups": ["chest"],
+     "free_text_excerpt": "rolled twice, felt strong"}
+  ],
+  "supplement_adherence_by_week": [
+    {"week_of": "2026-04-12", "morning_stack_pct": 0.86, "sleep_stack_pct": 0.71}
+  ],
+  "daily_subjective_avg": [
+    {"date": "2026-04-12", "mood": 7, "energy": 6, "concentration": 8}
+  ],
+  "intervention_events": [
+    {"date": "2026-04-29", "direction": "start", "name": "Inositol 500mg morning"}
+  ]
+}
+
+# Recent weekly narrative recaps (for context only, not for counting events)
+{array of last 2-3 weekly summary bodies from summaries where scope='weekly'}
 
 # Now generate findings.
 Return the JSON object only.
 ```
 
-The **user background block** is small, ~200-400 tokens, and looks something like:
+### User background block — supports full medical history
+
+The background block is **as big as Jon wants it to be.** It's prompt-cached at the Anthropic API level (1-hour TTL when forced), and even uncached on Sonnet 4.6 it's ~$3/M input tokens. A 30K-token block (full medical history + all past bloodwork + family history + allergies + current meds + doctor's notes) costs ~$0.09 per uncached run, ~40¢/month at expected frequency. Trivial.
+
+What goes in the background:
+
+- `users.profile_md` — free-text markdown profile editable in Settings
+- Concatenated `extracted_text` from `medical_documents` (PDFs uploaded by Jon — bloodwork history, doctor's notes, genetic test, prescription list, etc.)
+- A short footer with current age, timezone, training context
+
+Example skeleton:
 
 ```
-Jon, 40s, Vancouver (PST). BJJ practitioner with a healing biceps strain.
-Working on insulin sensitivity — last A1c 5.7, HOMA-IR 4.12. Daily
-supplement stack defined; current open intervention is inositol with the
-morning stack. Prefers protein as the headline metric over calories.
-Wants pattern over preaching. No moralizing about food or alcohol.
-Tracks BJJ session quality 1-10 in free-text notes.
+# Jon's health profile
+
+40s, Vancouver (PST). BJJ practitioner ~3x/week with a healing biceps
+strain. Working on insulin sensitivity.
+
+## Current focus
+- Insulin sensitivity: last A1c 5.7 (Dec 2025), HOMA-IR 4.12. Trying to
+  see both numbers drop at next draw.
+- BJJ recovery: managing biceps strain, avoiding heavy pulls.
+
+## Known history
+- Father: type 2 diabetes diagnosed late 50s
+- Mother: hypothyroidism
+- Personal: no chronic conditions, no medications
+
+## Bloodwork timeline
+{extracted from medical_documents}
+
+## Genetic
+{if uploaded — e.g. APOE status, MTHFR, etc.}
+
+## Tone preference
+Pattern over preaching. No moralizing. State the data, stop.
 ```
 
-This block is sent with Anthropic's prompt-caching `cache_control` so it costs ~$0.0003 per run after the first.
+### Active interventions block
+
+A small JSON snippet, ~200 tokens, sent fresh each run:
+
+```json
+[
+  {
+    "name": "Inositol 500mg with morning stack",
+    "type": "supplement",
+    "started_at": "2026-04-29",
+    "days_running": 13,
+    "expected_window_days": 21
+  }
+]
+```
+
+Why it's separate: it changes week to week so it can't be prompt-cached, and Sonnet needs the day-count to contextualize ("13 days into inositol = within the 21-day window, but past the typical 14-day check-in").
 
 -----
 
@@ -321,27 +402,30 @@ prompt should stay stable so the output JSON contract doesn't change.
 
 ## Companion: the weekly summarizer (Haiku, runs after Sonnet)
 
-After Sonnet returns, one Haiku call generates the ~500-token weekly
-summary that gets stored in `summaries(scope='weekly')`. This summary is
-what feeds next week's cross-domain pass.
+After Sonnet returns, one Haiku call generates the weekly narrative
+recap that gets stored in `summaries(scope='weekly')`. **This is for
+human review on the dashboard, not for the next week's cross-domain
+analysis** (we use structured queries for that, see "Input shape" above).
 
-That prompt is much simpler:
+Because it's no longer feeding a downstream LLM call, there is **no token
+cap**. Write as long as needed to be informative for Jon. Probably
+1500-2500 tokens in practice.
 
 ```
-Summarize this week's health data in ~500 tokens. Mention:
-- Notable foods (especially: beans, ferments, ultra-processed count, olive oil days)
-- Supplement adherence by stack_group
-- Workouts (sessions, top lifts, BJJ sessions and quality if logged)
-- Mood/energy/concentration daily averages
-- Any symptoms with dates
+Write a recap of this week for Jon to read on Saturday morning. Cover:
+
+- Notable foods with dates (beans, ferments, olive oil days, ultra-processed count)
+- Supplement adherence by stack_group (with %)
+- Workouts (sessions, top lifts by exercise, BJJ sessions and quality)
+- Mood / energy / concentration daily averages, plus any obvious dips or peaks
+- Symptoms with dates
 - Active interventions and day-count
 - Anything in free_text_notes worth carrying forward
 
-Tone: dense, dry, no commentary. Bullet points are fine.
+Tone: dense and dry, but informative. Specific dates, specific foods,
+specific weights. No commentary, no praise, no prescriptions. Section
+headers and bullet points are fine. Length is whatever it needs to be.
 ```
-
-This prompt is also worth reviewing but it's a lot simpler. Happy to draft
-it separately if helpful.
 
 -----
 

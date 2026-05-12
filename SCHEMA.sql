@@ -15,6 +15,7 @@ create table if not exists users (
   id          uuid primary key default uuid_generate_v4(),
   email       text unique,
   timezone    text not null default 'America/Los_Angeles',
+  profile_md  text,                                         -- free-text health background (markdown), fed into Sonnet as cached context
   created_at  timestamptz not null default now()
 );
 
@@ -225,6 +226,24 @@ create index insights_kind_idx          on insights (user_id, kind, surfaced_at 
 -- via the Ask AI export. We don't store agents, conversations, or messages.
 
 -- =====================================================================
+-- Medical documents — uploaded health-history files (PDFs, images, notes)
+-- Extracted text is concatenated into the user's background block.
+-- =====================================================================
+create table if not exists medical_documents (
+  id              uuid primary key default uuid_generate_v4(),
+  user_id         uuid not null references users(id) on delete cascade,
+  title           text not null,                                -- "2025 December NiaHealth panel"
+  kind            text,                                          -- 'bloodwork' | 'doctors_note' | 'genetic' | 'prescription' | 'family_history' | 'other'
+  pdf_url         text,                                          -- Supabase Storage path in 'bloodwork' or 'medical' bucket
+  extracted_text  text,                                          -- OCR'd / parsed contents
+  doc_date        date,                                          -- date the document represents (not upload date)
+  notes           text,
+  created_at      timestamptz not null default now()
+);
+
+create index medical_documents_user_idx on medical_documents (user_id, doc_date desc);
+
+-- =====================================================================
 -- Bloodwork — lab results over time
 -- =====================================================================
 create table if not exists bloodwork_draws (
@@ -402,6 +421,7 @@ alter table supplements              enable row level security;
 alter table supplement_logs          enable row level security;
 alter table interventions            enable row level security;
 alter table insights                 enable row level security;
+alter table medical_documents        enable row level security;
 alter table bloodwork_draws          enable row level security;
 alter table bloodwork_markers        enable row level security;
 alter table bloodwork_expectations   enable row level security;
@@ -419,3 +439,4 @@ alter table api_usage                enable row level security;
 -- In Supabase dashboard, create these buckets:
 --   audio       (private, 30-day lifecycle policy for auto-delete)
 --   bloodwork   (private, no lifecycle)
+--   medical     (private, no lifecycle) -- uploaded doctor's notes, genetic tests, etc.

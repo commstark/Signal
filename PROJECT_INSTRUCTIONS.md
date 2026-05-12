@@ -202,17 +202,18 @@ Two layers. There is no standalone nightly job — cross-domain hunting is folde
 
 ### 1. Weekly reflection (intra-week patterns + cross-domain over history)
 
-Every Sunday at 9pm PST, run the **Weekly Reflection**:
+Every **Friday at 9pm PST**, run the **Weekly Reflection**:
 
-- Sonnet receives the **raw** last 7 days: full transcripts + structured rows (health_logs, food_log_items, workout sessions/exercises/sets, supplement_logs, interventions). No pre-compression.
-- Sonnet also receives the last 8 weekly summaries from the `summaries` table — this is the cross-domain history. Early on (weeks 1-4) this is small and cross-domain findings will be flagged low_confidence by definition; as history accumulates the cross-domain dimension gets real.
-- A small static "background" block (Jon's age, BJJ practice, current focus on insulin sensitivity, active interventions snapshot) is included and prompt-cached at the Anthropic API level for ~90% input discount on subsequent runs.
-- 7 days of raw is ~15-25K tokens; 8 weekly summaries are ~4K tokens. Total prompt comfortably under 35K. Sonnet 4.6 has 200K context.
+- Sonnet receives the **raw** last 7 days: full transcripts + structured rows (health_logs, food_log_items, workout sessions/exercises/sets, supplement_logs, interventions). No pre-compression — Sonnet does its own compression on the fly, in service of the analysis.
+- Sonnet also receives a **structured aggregate of the last 8-12 weeks**, queried directly from the database (not LLM-summarized). This preserves event-level detail with dates — food tags by date, symptoms by date, workout quality by date, supplement adherence by week, daily mood/energy averages, intervention events. This is the cross-domain input. Event-level retention is what lets `n` grow cumulatively for cross-domain findings.
+- For human context, the last 2-3 weekly narrative recaps from `summaries` are also included.
+- An **active interventions block** (~200 tokens of fresh JSON) tells Sonnet what's currently being trialed and the day-count.
+- A **user background block** is prompt-cached: `users.profile_md` plus extracted text from `medical_documents`. Can be 5K-30K tokens. Costs ~$0.05-0.15/run uncached on Sonnet, less with cache hits.
 
-**The prompt has two halves:**
+**Two halves of the analysis:**
 
-1. **Intra-week patterns** — what stood out in the last 7 days? (e.g., "headache mentions: 4 this week vs 0 last week").
-2. **Cross-domain correlations across history** — patterns that span weeks and link domains that aren't usually tracked together (e.g., garden activity → BJJ performance; late screen-time → next-day energy; specific foods → mood next morning).
+1. **Intra-week patterns** — what stood out in the last 7 days vs recent baseline? `n` = events in the 7-day window. Examples: "headache mentions: 4 this week vs 0 prior 6 weeks, n=4."
+2. **Cross-domain correlations across history** — patterns that span weeks and link domains that aren't usually tracked together. `n` = events accumulated across the 8-12 week window. Examples: "BJJ session quality 8+ followed bean-heavy lunches the day prior, 4 of 5 instances over 10 weeks, n=5."
 
 **Hard rules applied to every finding:**
 
@@ -220,11 +221,11 @@ Every Sunday at 9pm PST, run the **Weekly Reflection**:
 - If n < 5, automatically tagged `confidence=low_n`. UI shows a `low n` badge.
 - Each finding cites the underlying rows so Jon can sanity-check.
 - Observational only, never prescriptive. No "you should."
-- Max 3 intra-week findings + 2 cross-domain findings per run.
+- Max 3 intra-week findings + 2 cross-domain findings per run. Empty arrays are valid output if nothing surfaces.
 
-Stored in `insights` table, one row per finding (`kind='pattern'`) plus one summary row (`kind='weekly_reflection'`). Surfaced on dashboard. Optional push notification linking to the summary.
+Stored in `insights` table: one row per finding (`kind='pattern'`) plus one summary row (`kind='weekly_reflection'`). Surfaced on dashboard. Optional push notification.
 
-After the run, a Haiku call generates that week's ~500-token summary and writes it to `summaries(scope='weekly')` — this becomes input for next week's cross-domain pass. This is the one place a Haiku compression is justified: building the history for the cross-domain dimension over time.
+After the Sonnet run, a Haiku call writes a **dense human-readable weekly recap** to `summaries(scope='weekly')`. No token cap — make it as informative as needed (probably 1500-2500 tokens). This summary is for Jon to read on the dashboard, **not** for next week's cross-domain pass (we use structured queries for that, so per-event detail is never lost).
 
 ### 2. Intervention tracking
 
@@ -334,7 +335,7 @@ iOS PWA push notifications work after home-screen install + permission grant. We
 
 ### Notification types
 
-1. **Weekly Reflection** — Sunday 9pm PST, summary of patterns
+1. **Weekly Reflection** — Friday 9pm PST, summary of patterns
 1. **Intervention check-in** — Day 14 and Day 28 of any active intervention
 1. **Pattern alert** — when a hard threshold is crossed (e.g., “3 headaches in 3 days, first time in 6 weeks”). Triggered by deterministic rules, not by an LLM hunch.
 
@@ -439,8 +440,9 @@ Voice command “took morning stack” logs all morning items in one go.
 
 ### Phase 2 — Insights + interventions + Ask AI
 
-- Weekly Sonnet reflection cron (Sunday 9pm PST, batch API, raw data + 8 prior weekly summaries, prompt-cached background block) — finds intra-week patterns AND cross-domain correlations across history. Hard `low_n` tagging for n<5.
-- Haiku weekly summarizer that writes a ~500-token row into `summaries(scope='weekly')` after each reflection — this is what next week's cross-domain pass reads.
+- Weekly Sonnet reflection cron (Friday 9pm PST, batch API, raw last 7 days + structured 8-12 week aggregate + active interventions + cached user background block from `users.profile_md` + `medical_documents`) — finds intra-week patterns AND cross-domain correlations across history. Hard `low_n` tagging for n<5.
+- Haiku weekly recap writer (no token cap) — writes a human-readable summary to `summaries(scope='weekly')` for dashboard review. Not used as cross-domain input; cross-domain pulls from structured tables directly so event-level detail is never lost.
+- Settings: paste a markdown health profile (`users.profile_md`), upload medical documents (PDFs → `medical_documents.extracted_text`)
 - Intervention day 14 / day 28 diff views (in-app)
 - `Ask AI` export sheet with templates, scope selector, copy + deep links
 - Insights dashboard surfaces
@@ -485,7 +487,8 @@ signal/
 │       ├── transcribe/route.ts
 │       ├── parse/route.ts
 │       ├── export/route.ts            (assembles Ask AI prompt)
-│       ├── insights/weekly/route.ts   (Sunday cron, raw data -> Sonnet)
+│       ├── insights/weekly/route.ts   (Friday cron, Sonnet -> Haiku recap)
+│       ├── medical/upload/route.ts    (PDF -> extracted_text)
 │       └── bloodwork/expect/route.ts
 ├── lib/
 │   ├── supabase.ts
