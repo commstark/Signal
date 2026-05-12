@@ -46,8 +46,9 @@ create table if not exists health_logs (
   user_id             uuid not null references users(id) on delete cascade,
   occurred_at         timestamptz not null,
 
-  -- nutrition (focused subset — no calorie counting)
+  -- nutrition (focused subset — protein is the headline; calories secondary, low-precision)
   protein_g             numeric(6,2),
+  calories_kcal         numeric(7,1),
   fiber_g               numeric(6,2),
   added_sugars_g        numeric(6,2),
   saturated_fat_present boolean,

@@ -134,6 +134,7 @@ Classification prompt should be cheap (Haiku) and run first. The full parse then
     { "name": "bean salad over rice", "portion": "large bowl", "time_relative": "lunch" }
   ],
   "estimated_nutrition": {
+    "calories_kcal": 520,
     "protein_g": 25,
     "fiber_g": 12,
     "added_sugars_g": 0,
@@ -181,16 +182,17 @@ When intent is `intervention_start` or `intervention_stop`:
 
 ### Nutrition — the focused approach
 
-Jon does NOT want calorie counting. He DOES want:
+Track these:
 
-- **Protein grams** (running daily total)
+- **Protein grams** (running daily total — the headline number)
+- **Calories** (running daily total — secondary, low-precision, show with confidence)
 - **Fiber grams** (running daily total)
 - **Added sugars** (running daily total)
 - **Carb timing** (when carbs were eaten, not how much)
 - **Saturated fat presence/absence** (binary per meal)
 - **Specific items he cares about:** olive oil intake, fermented foods, beans, ultra-processed food count
 
-Each food item passes through a lightweight nutrition estimator. Use a simple LLM call with a few-shot prompt; don’t integrate with USDA or paid nutrition APIs (overkill). Confidence levels matter — show them.
+Each food item passes through a lightweight nutrition estimator. Use a simple LLM call with a few-shot prompt; don’t integrate with USDA or paid nutrition APIs (overkill). Confidence levels matter — show them. Calories from voice descriptions are inherently rough (±20-30%); render with the confidence tag, never as a precise figure.
 
 -----
 
@@ -336,7 +338,7 @@ In any agent panel, button to fan question out to all active agents. Returns sta
 
 **Main sections (single column on mobile, two column on desktop):**
 
-1. **Today** — what’s been logged so far, running totals (protein g, fiber g, water oz, energy avg)
+1. **Today** — what’s been logged so far, running totals (protein g headline, calories secondary, fiber g, water oz, energy avg)
 1. **This Week** — sparkline of mood/energy, supplement adherence %, workout summary
 1. **Active interventions** — what’s running, day count, “any signal yet?” preview
 1. **Latest insights** — last 3 surfaced patterns, tap to expand
@@ -554,7 +556,7 @@ signal/
 - Native iOS app
 - Wearable integration (Apple Health, Whoop, Oura)
 - Social/sharing features
-- Calorie counting or full macro breakdown
+- Full macro breakdown beyond protein / fiber / added sugars / calories
 - Voice cloning of real people
 - Apple Watch companion
 - Streaks, gamification, or scoring
