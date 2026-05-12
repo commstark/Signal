@@ -204,8 +204,9 @@ Two layers. Nightly cross-domain hunting is explicitly out — at this data volu
 
 Every Sunday at 9pm PST, run the **Weekly Reflection**:
 
-- Each day, at midnight PST, a Haiku digest compresses the day’s entries into ~200 tokens (the “daily digest”). This is cheap and keeps Sonnet input small.
-- Sunday Sonnet call receives: 7 daily digests + active interventions + last 4 weekly summaries. Total prompt is small enough to fit comfortably with caching.
+- Sonnet receives the **raw** last 7 days: full transcripts + structured rows (health_logs, food_log_items, workout sessions/exercises/sets, supplement_logs, interventions). No pre-compression.
+- A small static "background" block (Jon's age, BJJ practice, current focus on insulin sensitivity, active interventions snapshot) is included and prompt-cached at the Anthropic API level for ~90% input discount on subsequent runs.
+- 7 days of raw data is roughly 15-25K tokens — Sonnet 4.6 has 200K context, so we have 10x headroom.
 - Prompt: find up to 3 patterns, observational only. Every finding must include n. If n < 3, say so explicitly.
 - Output format: matter-of-fact, no prescriptions.
 - Examples:
@@ -380,17 +381,17 @@ Voice command “took morning stack” logs all morning items in one go.
 
 ### Model selection
 
-- **Haiku** (`claude-haiku-4-5-20251001`) for: intent classification, parsing voice notes, supplement matching, daily digests
+- **Haiku** (`claude-haiku-4-5-20251001`) for: intent classification, parsing voice notes, supplement matching
 - **Sonnet** (`claude-sonnet-4-6`) for: weekly reflection, intervention reports, bloodwork expectations
 - **Never Opus** for this app
 
 ### Architecture for low cost
 
-1. **Daily Haiku digest.** Every night, Haiku compresses the day’s entries into ~200 tokens. Weekly Sonnet runs on 7 short digests, not raw data. This is the single biggest lever.
-2. **Anthropic prompt caching** for system prompts and Jon’s static background block — ~90% discount on cached input tokens.
-3. **Anthropic batch API** for the weekly reflection and bloodwork expectations (neither is time-critical) — 50% discount.
-4. **No nightly Sonnet job.** Patterns are weekly only.
-5. **No in-app open-ended chat.** Ask AI export routes that workload to Jon’s own Claude/ChatGPT subscription, so it costs us $0.
+1. **Anthropic prompt caching** for the system prompt + Jon's static background block on the weekly reflection — ~90% discount on cached input tokens.
+2. **Anthropic batch API** for the weekly reflection and bloodwork expectations (neither is time-critical) — 50% discount.
+3. **No nightly Sonnet job.** Patterns are weekly only.
+4. **No daily digest pre-compression.** Tested: digest path saved ~5-10¢/month versus sending raw data to Sonnet. Sonnet's on-the-fly compression with full context beats Haiku's pre-compression, and removes a cron job. Send raw.
+5. **No in-app open-ended chat.** Ask AI export routes that workload to Jon's own Claude/ChatGPT subscription, so it costs us $0.
 6. **TTS deferred** to post-v1.
 
 ### Storage
@@ -401,9 +402,9 @@ Voice command “took morning stack” logs all morning items in one go.
 ### Estimated monthly cost (post-simplification)
 
 - Whisper: ~$1
-- Haiku (intent + parsing + daily digests): ~$1-2
-- Sonnet (weekly reflection + occasional bloodwork expectations + intervention reports): ~$3-5 with caching and batch discounts
-- **Total: $5-10/month**
+- Haiku (intent + per-intent parsing): ~$1-2
+- Sonnet (weekly reflection + occasional bloodwork expectations + intervention reports): ~$1-3 with caching and batch discounts
+- **Total: $3-6/month** at moderate daily use
 
 -----
 
@@ -426,8 +427,7 @@ Voice command “took morning stack” logs all morning items in one go.
 
 ### Phase 2 — Insights + interventions + Ask AI
 
-- Daily Haiku digest cron (midnight PST)
-- Weekly Sonnet reflection cron (Sunday 9pm PST, batch API)
+- Weekly Sonnet reflection cron (Sunday 9pm PST, batch API, raw data input with prompt-cached background block)
 - Intervention day 14 / day 28 diff views (in-app)
 - `Ask AI` export sheet with templates, scope selector, copy + deep links
 - Insights dashboard surfaces
@@ -472,8 +472,7 @@ signal/
 │       ├── transcribe/route.ts
 │       ├── parse/route.ts
 │       ├── export/route.ts            (assembles Ask AI prompt)
-│       ├── insights/weekly/route.ts   (Sunday cron)
-│       ├── insights/daily/route.ts    (midnight cron, Haiku digest)
+│       ├── insights/weekly/route.ts   (Sunday cron, raw data -> Sonnet)
 │       └── bloodwork/expect/route.ts
 ├── lib/
 │   ├── supabase.ts
@@ -487,7 +486,6 @@ signal/
 │       ├── parse-workout.ts
 │       ├── parse-supplement.ts
 │       ├── parse-intervention.ts
-│       ├── daily-digest.ts
 │       ├── weekly-reflection.ts
 │       └── bloodwork-expectations.ts
 ├── components/

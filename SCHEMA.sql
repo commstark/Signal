@@ -286,7 +286,7 @@ create index bloodwork_expectations_user_marker_idx on bloodwork_expectations (u
 create table if not exists summaries (
   id           uuid primary key default uuid_generate_v4(),
   user_id      uuid not null references users(id) on delete cascade,
-  scope        text not null,                              -- 'daily' (Haiku digest) | 'weekly' (Sonnet reflection). Monthly added later if needed.
+  scope        text not null,                              -- 'weekly' (Sonnet reflection cache). Daily/monthly may come later; we don't pre-compress daily into Haiku digests.
   period_start timestamptz not null,
   period_end   timestamptz not null,
   body         text not null,                              -- the LLM summary

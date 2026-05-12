@@ -175,7 +175,7 @@ public/                   manifest, icons, service worker
 
 ## Costs
 
-Expected ~$5-10/month in API fees at moderate daily use after the simplifications in `PROJECT_INSTRUCTIONS.md` (daily Haiku digests, prompt caching, batch API, no nightly Sonnet, no in-app open-ended chat, no TTS).
+Expected ~$3-6/month in API fees at moderate daily use after the simplifications in `PROJECT_INSTRUCTIONS.md` (raw-data weekly Sonnet with prompt-cached background, batch API, no nightly Sonnet, no in-app open-ended chat, no TTS).
 
 Claude Max subscription does NOT cover the API. The app uses Console API keys, billed separately.
 
