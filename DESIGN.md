@@ -240,7 +240,7 @@ Trend indicators (when applicable):
 
 - Background: `--surface` with 1px border
 - 11px mono uppercase
-- Used for: agent tier, intervention status, confidence labels
+- Used for: intervention status, confidence labels, expectation outcome (hit / miss / direction)
 
 -----
 
@@ -250,24 +250,27 @@ Trend indicators (when applicable):
 
 Sections in order:
 
-1. **Header strip** — date · timezone · settings icon
-1. **Today** — protein, fiber, water (3 cards horizontal on desktop, stacked mobile)
+1. **Header strip** — date · timezone · settings icon · `Ask AI` button (top-right)
+1. **Today** — protein (headline), calories (secondary, with confidence tag), fiber, water — cards horizontal on desktop, stacked mobile
 1. **Energy / mood** — single card with sparkline
 1. **Active interventions** — list, 1-3 rows, day counter prominent
 1. **Latest insights** — last 3 surfaced patterns, tap to expand
-1. **Today’s log** — reverse chronological list of entries with timestamps
-1. **Agents** — horizontal scroll of agent chips, tap to open panel
+1. **Today’s log** — reverse chronological list of entries with timestamps; tap a transcript to edit
 1. **Bottom: record button** — fixed
 
 ### Capture (`/capture`)
 
-Minimal. Full screen, center the record button at 60% viewport height. Below it: live transcript appears while recording. Below transcript: parsed structured fields populate as Claude returns them. Bottom: “save” and “discard” buttons appear after stop.
+Minimal. Full screen, center the record button at 60% viewport height. Below it: live transcript appears while recording. Below transcript: parsed structured fields populate as Claude returns them.
+
+Save happens automatically on `stop` — there is no autosave timer. Bottom: `edit transcript` (taps into an inline editor that re-fires the parse on save) and `discard`.
+
+If offline at the moment of stop: the audio queues locally and a small `queued` chip appears in the corner. The service worker syncs when connectivity returns.
 
 Top-left: small `×` to close. No other chrome.
 
 ### Workout (`/workout`)
 
-Different posture — landscape-friendly, glanceable, big numbers.
+Different posture — landscape-friendly, glanceable, big numbers. No wake word, no continuous listening — tap to record each set.
 
 ```
 ┌──────────────────────────────────────┐
@@ -285,54 +288,47 @@ Different posture — landscape-friendly, glanceable, big numbers.
 └──────────────────────────────────────┘
 ```
 
-Wake-lock active. Continuous-listen indicator (small dot) top-right when wake word enabled.
+Screen wake-lock active throughout the session.
 
-### Agent panel (right overlay)
+### Ask AI sheet (modal, replaces agent panel)
 
-```
-┌──────────────────────────┐
-│ Peter Attia      ─  ×    │  header with minimize + close
-│ tier 1 · longevity       │  metadata strip
-│ ──────────────────────── │
-│                          │
-│  [your message]          │  right-aligned, --surface
-│                          │
-│  [agent response]        │  left-aligned, no background
-│  source: Outlive ch.7    │  --ink-3 mono small
-│                          │
-│ ──────────────────────── │
-│  Ask Peter Attia...      │  text input
-└──────────────────────────┘
-```
-
-Width: 380px desktop. Full screen mobile.
-
-Voice button inside input. Tap to speak the question instead of typing.
-
-### Agent builder (right overlay, replaces panel temporarily)
-
-Conversational flow. Looks identical to an agent chat panel but the agent is “Builder” and the questions are the onboarding flow described in PROJECT_INSTRUCTIONS.md.
-
-When tier is determined, render a card inline in the conversation:
+Triggered by the `Ask AI` button on the dashboard, capture page, intervention detail, or bloodwork page. Slides up from the bottom on mobile, centered modal on desktop. Width: 480px desktop.
 
 ```
-┌──────────────────────────┐
-│ Peter Attia              │
-│ tier 1                   │
-│                          │
-│ sources found:           │
-│ · Outlive (2023)         │
-│ · The Drive · 280 eps    │
-│ · peterattiamd.com       │
-│ · 12 papers              │
-│                          │
-│ [ build ]  [ refine ]    │
-└──────────────────────────┘
+┌──────────────────────────────────┐
+│ Ask AI                       ×   │
+│                                  │
+│ template                         │
+│ [ general reflection         ▾ ] │
+│                                  │
+│ data scope                       │
+│ [ last 7 days                ▾ ] │
+│                                  │
+│ your question (optional)         │
+│ ┌──────────────────────────────┐ │
+│ │                              │ │
+│ └──────────────────────────────┘ │
+│                                  │
+│ preview                          │
+│ ┌──────────────────────────────┐ │
+│ │ # My background              │ │
+│ │ ...                          │ │
+│ │ # Last 7 days                │ │
+│ │ { ... }                      │ │
+│ │ # Question                   │ │
+│ │ What stands out?             │ │
+│ └──────────────────────────────┘ │
+│                                  │
+│ [ copy ]  [ open in Claude ]     │
+│           [ open in ChatGPT ]    │
+└──────────────────────────────────┘
 ```
+
+The preview is read-only but selectable. The data block is the live assembled JSON for the chosen scope. Templates: general reflection, intervention check, pre-bloodwork, workout question, free-form.
 
 ### Insights (`/insights`)
 
-Two tabs: **Patterns** (weekly + nightly findings) and **Interventions** (active + completed).
+Two tabs: **Patterns** (weekly findings) and **Interventions** (active + completed). No nightly findings — patterns are weekly only.
 
 Each pattern row:
 
@@ -348,13 +344,15 @@ Table of markers (rows) × draws (columns). Most recent on right. Trend arrow pe
 
 Upload button top-right. Drop a PDF, parse, confirm extracted values, save.
 
+**Expectations row:** when a planned-draw date is set, a row appears under each marker showing the expected range plus a one-line rationale. After the actual draw, the row is tagged `hit` / `miss` / `direction`.
+
 ### Settings
 
 Minimal list. No tabs, no nesting unless required.
 
-- account · passcode
+- account · email (magic-link)
 - timezone · units (lb default)
-- notifications · per-type toggle
+- notifications · per-type toggle, quiet hours
 - data · export markdown / delete audio / wipe
 - about · version
 
@@ -369,22 +367,15 @@ Minimal list. No tabs, no nesting unless required.
 1. One tap → red, recording starts immediately
 1. Audio waveform appears (basic, mono color, no visual flourish)
 1. Tap stop → button greys out for ~1s (“transcribing…”)
-1. Transcript appears in body text
+1. Transcript appears in body text; auto-saves immediately
 1. Structured fields populate below as parser returns them
-1. Auto-saves after 3s of no edits. Or tap `save` to commit immediately. Or `discard`.
+1. Tap the transcript to edit; saving the edit re-fires the parse
 
-### Voice response (workout mode)
+### Ask AI sheet
 
-- Question recognized → “thinking…” indicator (single character, `…` mono, blinks)
-- Response generated → TTS plays through default audio output
-- Transcript shown on screen as it’s spoken (karaoke-style highlight optional, V2)
-
-### Agent panel
-
-- Slide-in animation: 180ms ease-out, translateX only, no fade
-- Stack: each new agent pushes existing panels left
-- Drag the header to reorder panels (desktop)
-- Tap minimize → collapses to 32px vertical tab on right edge with agent name rotated 90°
+- Slide-up animation on mobile, fade-in modal on desktop: 180ms ease-out
+- Preview pane updates live as template / scope / question changes
+- `copy` writes the assembled prompt to the clipboard; deep-link buttons open Claude.ai or chatgpt.com in a new tab with the prompt prefilled (clipboard fallback if prefill not supported by the target)
 
 ### Notifications
 
@@ -421,7 +412,7 @@ Specific:
 
 - Record: `Circle` (filled when recording)
 - Stop: `Square` (filled)
-- Agent: `MessageSquare`
+- Ask AI: `Share2`
 - Insight: `Sparkle` (the only sparkle allowed)
 - Intervention: `FlaskConical`
 - Bloodwork: `Activity`

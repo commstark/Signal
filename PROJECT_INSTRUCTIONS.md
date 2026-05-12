@@ -11,17 +11,17 @@ Signal is a personal health operating system. The core loop:
 1. **Capture** — Double-tap the back of the iPhone, talk for 5-30 seconds, done.
 1. **Parse** — Whisper transcribes, Claude extracts structured data (food, mood, energy, symptoms, workouts, supplements, activities).
 1. **Store** — Raw transcripts + structured data + interventions go into Supabase.
-1. **Learn** — Weekly pattern hunting surfaces non-obvious correlations across domains.
-1. **Coach** — Custom user-built agents (Huberman, Attia, Arnold, etc.) answer questions using both their published work and Jon’s data.
-1. **Speak** — Voice responses through earbuds during workouts. Visual dashboard for review.
+1. **Learn** — Weekly Sonnet reflection surfaces patterns. Intervention before/after diffs on day 14 and 28.
+1. **Export** — One-tap “Ask AI” bundles relevant data + a structured prompt and copies to clipboard or deep-links to Claude/ChatGPT. The conversation happens there, not in our app.
+1. **Review** — Visual dashboard for daily totals, weekly trends, intervention status, bloodwork.
 
-The differentiator vs other trackers: the agent builder, cross-domain pattern hunting, and intervention-based n=1 analysis.
+The differentiator vs other trackers: voice-first capture, intervention-based n=1 analysis, and exportable context for any LLM.
 
 -----
 
 ## Who it’s for
 
-Jon. Just Jon. Single-user app, no auth needed beyond a basic gate. Multi-user can come later if it matters.
+Jon. Just Jon. Single-user app. Auth via Supabase magic-link to Jon’s email. Multi-user can come later if it matters.
 
 Jon’s context that should inform defaults:
 
@@ -36,15 +36,15 @@ Jon’s context that should inform defaults:
 ## Tech stack
 
 - **Frontend:** Next.js 14+ (App Router), React, Tailwind
-- **PWA:** Manifest + service worker, optimized for iOS home-screen install
+- **PWA:** Manifest + service worker, optimized for iOS home-screen install. Offline capture queue (IndexedDB) with background sync.
 - **Backend:** Next.js API routes (no separate backend)
 - **Database:** Supabase (Postgres + Storage for audio files)
-- **Auth:** Single magic-link login or simple passcode gate (it’s just Jon)
+- **Auth:** Supabase magic-link to Jon’s email
 - **Transcription:** OpenAI Whisper API
 - **LLM:** Anthropic API
-  - `claude-haiku-4-5` for parsing, intent classification, confirmations
-  - `claude-sonnet-4-6` for insights, agent conversations, pattern hunting
-- **TTS:** ElevenLabs (paid voices) or OpenAI TTS (cheaper). Browser TTS as fallback.
+  - `claude-haiku-4-5-20251001` for parsing, intent classification, day-end digests
+  - `claude-sonnet-4-6` for weekly reflection, bloodwork expectations, intervention reports
+- **TTS:** Deferred to post-v1. Voice replies are not in v1 scope.
 - **Hosting:** Vercel
 - **Deployment:** GitHub → Vercel auto-deploy
 
@@ -55,8 +55,8 @@ Jon’s context that should inform defaults:
 1. **Voice-first, dashboard-second.** The dashboard is for review. Most days, the app stays closed — back tap, talk, done.
 1. **Raw + structured both stored.** Never discard the original transcript. Structured data is for queries; raw text is for review and re-parsing.
 1. **Pattern over preaching.** Surface what’s happening, not what’s “supposed to” happen. No moralizing about food, alcohol, sleep, or anything else.
-1. **Cite or label as inferred.** Every agent recommendation includes a source. When inferring beyond their published work, say so.
-1. **Cost-conscious.** Haiku where it works, Sonnet where it matters. Cache. Summarize old data.
+1. **Don’t rebuild what subscriptions already do.** Open-ended LLM conversations live in Claude/ChatGPT via the Ask AI export. Our job is to make the data trivially exportable, not to host the chat.
+1. **Cost-conscious.** Haiku where it works, Sonnet where it matters. Cache. Pre-digest daily before weekly summarization. Batch when not time-critical.
 1. **Tone: matter-of-fact.** No filler, no praise, no engagement bait, no motivational closers. Less is more.
 
 -----
@@ -69,10 +69,10 @@ Jon’s context that should inform defaults:
 - Auto-focus the record button on page load
 - Single tap starts recording (Safari/iOS mic permission requires one user gesture)
 - Auto-stop after 60 seconds of silence, or manual tap to stop
+- Offline-safe: if no network, audio + transcript-stub queue in IndexedDB and upload when connectivity returns (service worker background sync)
 1. **Workout mode: Back tap (different shortcut) → `/workout`**
-- Continuous listening with optional wake word (“Hey Signal”)
-- Stays open during session, screen wake lock active
-- Voice responses through earbuds for next-set recommendations
+- Big tap-to-record button per set. No wake word, no continuous listening (unreliable on iOS Safari).
+- Screen wake lock active during session
 1. **Manual: open PWA from home screen → record button on dashboard**
 
 ### Pipeline
@@ -80,19 +80,16 @@ Jon’s context that should inform defaults:
 ```
 [User taps record]
   → MediaRecorder captures audio (webm or mp4)
+  → If offline: queue blob in IndexedDB, return early; SW will sync later
   → POST audio blob to /api/transcribe
     → Whisper transcribes
     → Returns transcript
   → POST transcript to /api/parse
     → Haiku classifies intent (see Intent Routing)
-    → Haiku/Sonnet extracts structured data based on intent
-    → Stores: { raw_transcript, intent, structured_data, agent_target?, timestamp_pst }
-  → If agent_question: route to /api/agent/[name]
-    → Sonnet generates response with agent's knowledge base + user's relevant data
-    → Streams response
-    → POST response to /api/tts (if voice mode)
-    → Plays audio
-  → UI shows transcript + structured fields + any agent reply
+    → Haiku extracts structured data based on intent
+    → Stores: { raw_transcript, intent, structured_data, timestamp_pst }
+  → UI shows transcript + structured fields
+  → Transcript is tap-to-edit; editing re-fires /api/parse on save
 ```
 
 ### Intent routing
@@ -101,24 +98,27 @@ Every voice note gets classified into one of these intents:
 
 ```typescript
 type Intent =
-  | 'health_log'        // food, mood, energy, symptoms, water
-  | 'workout_log'       // exercise, sets, reps, weight
-  | 'supplement_log'    // took/skipped specific items
-  | 'agent_question'    // "ask [name]..."
-  | 'data_query'        // "what did I do last week"
+  | 'health_log'         // food, mood, energy, symptoms, water
+  | 'workout_log'        // exercise, sets, reps, weight
+  | 'supplement_log'     // took/skipped specific items
   | 'intervention_start' // "starting inositol today"
   | 'intervention_stop'  // "stopping ashwagandha"
-  | 'free_note'         // general journal
-  | 'mixed'             // multiple of the above in one note
+  | 'free_note'          // general journal
+  | 'mixed'              // multiple of the above in one note
 ```
+
+**Parser guardrails (mandatory in the prompt):**
+
+- Numeric scores (mood 1-10, energy 1-10, concentration 1-10, RPE 1-10) are filled **only** when explicitly stated or unambiguously implied. Otherwise the field is `null`. Descriptors are always captured.
+- Confidence on nutrition estimates is mandatory (`high` | `medium` | `low`). If the food description is vague (“lunch was fine”), confidence is `low` and macros may be null.
+- Never invent supplement doses or names not in the user’s known stack — flag novel items as candidate interventions instead.
 
 Classification prompt should be cheap (Haiku) and run first. The full parse then uses an intent-specific schema.
 
 ### Response modes
 
-- **Silent:** for health/supplement logs, UI confirmation only. No voice.
-- **Short voice confirm:** for workout logs. Format: “set 2, bench 135 for 8.” No filler words.
-- **Full voice response:** for agent questions and data queries. Constraint: answer the question, stop. No preamble (“Great question…”), no closer (“Let me know if…”), no motivation, no “that’s how you grow” type lines.
+- **Silent:** for all logs, UI confirmation only. Number tick-up on the relevant totals on the dashboard.
+- **Save behavior:** entries auto-save when the user taps `stop` (not on a timer). They can edit the transcript afterward; saving the edit re-fires the parse.
 
 **Global tone rule for all generated output (voice and text):** Direct. No filler. No praise. No engagement bait. No closing lines designed to prolong interaction. State the thing, stop.
 
@@ -198,135 +198,92 @@ Each food item passes through a lightweight nutrition estimator. Use a simple LL
 
 ## The insights engine
 
-This is the actual product. Three layers:
+Two layers. Nightly cross-domain hunting is explicitly out — at this data volume it would hallucinate more than it would find.
 
-### 1. Pattern surfacing (weekly)
+### 1. Weekly reflection
 
-Every Sunday at 9pm PST, generate the **Weekly Reflection**:
+Every Sunday at 9pm PST, run the **Weekly Reflection**:
 
-- Sonnet receives the last 7 days of structured data + raw notes (summarized if too large)
-- Prompt: find 3-5 non-obvious patterns
-- Output format: observational, never prescriptive
+- Each day, at midnight PST, a Haiku digest compresses the day’s entries into ~200 tokens (the “daily digest”). This is cheap and keeps Sonnet input small.
+- Sunday Sonnet call receives: 7 daily digests + active interventions + last 4 weekly summaries. Total prompt is small enough to fit comfortably with caching.
+- Prompt: find up to 3 patterns, observational only. Every finding must include n. If n < 3, say so explicitly.
+- Output format: matter-of-fact, no prescriptions.
 - Examples:
   - “Morning energy: 7.4 avg on inositol-with-breakfast days, 6.1 on inositol-with-lunch days. n=12.”
-  - “BJJ session quality 8+ followed bean-heavy lunches the day prior, 3 of 3 instances. Small n.”
-  - “Headache mentions: 4 this week vs 0 last week. All on days with logged screen time past 10pm.”
+  - “Headache mentions: 4 this week vs 0 last week. n=1 week comparison, low confidence.”
 
-Stored in `insights` table. Surfaced on dashboard. Push notification sent.
+Stored in `insights` table. Surfaced on dashboard. Optional push notification.
 
 ### 2. Intervention tracking
 
-Each intervention row triggers an automated before/after comparison:
+Each intervention row triggers an automated before/after diff:
 
-- **Day 14 check-in:** “You started inositol 14 days ago. Want a snapshot?” → On tap, shows comparison of relevant metrics (energy, fullness, headaches) for the 14 days before vs 14 days after.
-- **Day 28 review:** Full report with stat-significance caveats (small n, but here’s what the data shows).
-- **Manual deep-dive:** Tap any intervention to see all metric deltas across the window.
+- **Day 14 check-in:** snapshot of relevant metrics (energy, fullness, mood, symptom counts) for the 14 days before vs 14 days after.
+- **Day 28 review:** wider window, same shape. Includes a single-paragraph Sonnet commentary with explicit n + “small sample” caveat.
+- **Manual deep-dive:** tap any intervention to see all metric deltas across the window.
+- Logs (`health_logs`, `supplement_logs`, `workout_exercises`) carry a nullable `intervention_id` so the diff queries are simple.
 
-### 3. Cross-domain pattern hunting
+### 3. Bloodwork expectations (replaces prediction)
 
-Run nightly on Sonnet with a low temperature. Looks for unexpected correlations:
+The use case: Jon’s last A1c was 5.7. He changed his diet and started inositol. **What does success look like at the next draw?**
 
-- Garden activity → BJJ performance
-- Late screen time → next-day energy
-- Specific foods → mood next morning
-- Workout intensity → sleep quality
-- Supplement timing variations → any downstream metric
-
-Surfaces findings in a “Patterns” dashboard tab. Each finding shows the underlying data so Jon can sanity-check it.
-
-### 4. Bloodwork prediction (the experimental feature)
-
-When Jon uploads bloodwork (PDF) or schedules new labs:
-
-- Compare logged habits across the prior 90 days to baseline
-- Sonnet predicts directional changes in: A1c, HOMA-IR, lipid panel, Vit D
-- Show ranges, not point estimates: “A1c likely 5.7-5.9, leaning lower based on consistent fiber intake and reduced late-night snacking vs last quarter”
-- Track prediction accuracy over time — does the system get better?
+- Before a planned draw: one Sonnet call receives last 90 days of logs + active interventions + the previous draw’s markers.
+- Output: per-marker expected range + a one-line rationale per range (“fiber average up 40% and added sugar down → A1c likely 5.4-5.6”).
+- Stored as `bloodwork_expectations` rows (one per marker per planned draw).
+- After actual results are uploaded, the row is scored hit/miss/direction-correct. Track this over time to see if the model is calibrated.
+- This is not a generic prediction model — it’s a “what should I be hoping to see, given what I changed.”
 
 -----
 
-## The agent system
+## Ask AI — export to any LLM
 
-### Agent data model
+Replacing the in-app agent system. Rationale: building a credible “Attia-style coach with citations” requires indexing his books, podcasts, and papers — that’s a separate product. We don’t need to host the conversation; we need to make our data trivially exportable into a chat that already exists in Claude or ChatGPT.
 
-```sql
-agents (
-  id uuid,
-  name text,                    -- "Peter Attia" or "Arnold (chest workouts)"
-  public_figure text,           -- "Peter Attia"
-  focus_areas text[],           -- ["longevity", "lipids", "Zone 2"]
-  citation_style text,          -- "quote_sources" | "summarize"
-  tone text,                    -- "direct" | "encouraging" | "blunt"
-  data_access_level text,       -- "full" | "metrics_only" | "none"
-  off_limits_topics text[],
-  knowledge_summary text,       -- auto-generated description
-  confidence_tier int,          -- 1-4 (see below)
-  voice_id text,                -- ElevenLabs voice id (NOT a clone)
-  created_at timestamptz
-)
+### What it does
+
+A persistent **Ask AI** button on the dashboard, capture page, intervention detail, and bloodwork pages. Tapping opens a sheet:
+
+1. **Prompt template selector** (one of):
+   - **General reflection** — “Here’s my last 7 days of health data. Tell me what stands out.”
+   - **Intervention check** — “I started [intervention] [N] days ago. Here’s the before/after diff. What does this suggest?”
+   - **Pre-bloodwork** — “My last labs showed [X]. I’ve changed [Y]. What should I expect at the next draw?”
+   - **Workout question** — “Here’s my last 4 weeks of lifts for [muscle group]. What should I do next session?”
+   - **Free-form** — bring your own question, we attach the data.
+2. **Data scope selector** — last 7 days / last 30 days / since intervention X / custom range.
+3. **Generated preview** — the assembled prompt is shown verbatim so the user can edit before sending.
+4. **Actions:**
+   - **Copy** — to clipboard, paste anywhere.
+   - **Open in Claude** — opens claude.ai with the prompt prefilled in a new chat (if the deep-link supports prefill; otherwise it opens claude.ai and the prompt is already in the clipboard).
+   - **Open in ChatGPT** — same, for chatgpt.com.
+
+### Data format in the export
+
+Structured JSON inside the prompt so the receiving LLM can parse it. Example:
+
+```
+You are helping me understand my health data. Be matter-of-fact, no filler.
+
+# My background
+- 40s, BJJ practitioner, healing biceps strain
+- Working on insulin sensitivity (last A1c 5.7, HOMA-IR 4.12)
+
+# Active interventions
+- Inositol 500mg with breakfast, day 12 of 21
+
+# Last 7 days
+{ "daily_digests": [ ... ] }
+
+# Question
+What stands out?
 ```
 
-### Confidence tiers
+### Why this is better than in-app agents
 
-When user adds an agent, the system evaluates available public material:
-
-- **Tier 1 (high):** 100+ hrs recorded content, multiple books, established public expert. Agent is highly reliable.
-- **Tier 2 (medium):** Some published work, interviews. Agent works with caveats.
-- **Tier 3 (low):** Minimal public material. Falls back to general medical knowledge labeled with the person’s name. User confirmed they want this.
-- **Tier 4 (unavailable):** No verified public material. Agent cannot be built.
-
-Tier evaluation is itself a Sonnet call when building the agent. Returns: `tier`, `reasoning`, `sample_sources_found`.
-
-### Agent build flow (conversational)
-
-1. User taps “Add Agent” on dashboard
-1. Right panel slides in with chat-style builder interface
-1. System: “Who would you like to chat with?”
-1. User: types or speaks a name
-1. System: searches for public material, returns tier + summary
-1. System: asks focus, citation style, tone, data access, off-limits
-1. System: generates `knowledge_summary` (e.g., “This agent draws from Attia’s published work: Outlive (2023), 280+ Drive podcast episodes, his blog, and peer-reviewed papers on lipids and longevity.”)
-1. User confirms or refines
-1. Agent saved, available in agent panel list
-
-### Talking to agents — UI
-
-**Desktop layout:**
-
-- Main dashboard fills screen
-- Tap agent name in sidebar → right panel slides over, ~40% width
-- Tap a second agent → second panel opens to the left of the first (split right side)
-- Up to 3 panels visible simultaneously on desktop
-- Each panel: name + tier badge at top, conversation history middle, input at bottom with placeholder “Ask [name]…”
-- Minimize button collapses panel to a vertical tab on right edge
-- Close button removes from active panels (conversation persists)
-
-**Mobile layout:**
-
-- Single panel slides up from bottom, full screen
-- Tab strip at top to switch between active agents
-- Swipe down to dismiss
-- “Compare” button opens a stacked view: one question, multiple agents answer
-
-### Voice routing to agents
-
-When intent classifier returns `agent_question`:
-
-- Extract target agent name from transcript
-- Match against user’s saved agents (fuzzy match — “ask Arnold” matches “Arnold Schwarzenegger”)
-- If no match: ask user via voice “I don’t have an Arnold agent yet — want to build one?”
-- If match: load agent, generate response, TTS, play audio
-
-### Voice ethics — IMPORTANT
-
-- Agents use **synthetic voices that fit the persona**, not voice clones.
-- UI must always show: “Arnold-style perspective · AI voice”
-- No claim that Arnold (or any real person) actually said what the agent says.
-- Citation is required for specific protocols/recommendations.
-
-### “Ask all” feature
-
-In any agent panel, button to fan question out to all active agents. Returns stacked responses with side-by-side comparison. User can mark answers 👍 / 👎 which feeds back into agent tuning.
+- Zero in-app LLM cost for open-ended conversation (user pays their Claude/ChatGPT subscription).
+- Zero knowledge-base maintenance.
+- Users get the latest, smartest model automatically.
+- No voice-cloning ethics minefield.
+- A days-long build instead of a months-long one.
 
 -----
 
@@ -340,10 +297,10 @@ In any agent panel, button to fan question out to all active agents. Returns sta
 
 1. **Today** — what’s been logged so far, running totals (protein g headline, calories secondary, fiber g, water oz, energy avg)
 1. **This Week** — sparkline of mood/energy, supplement adherence %, workout summary
-1. **Active interventions** — what’s running, day count, “any signal yet?” preview
+1. **Active interventions** — what’s running, day count
 1. **Latest insights** — last 3 surfaced patterns, tap to expand
-1. **Agents** — list of your saved agents, tap to open panel
-1. **Bloodwork** — last result snapshot, trend arrows, next-lab predictor
+1. **Bloodwork** — last result snapshot, trend arrows, link to expectations for next draw
+1. **Ask AI** button — persistent, opens the export sheet
 
 ### Visual direction
 
@@ -367,9 +324,7 @@ iOS PWA push notifications work after home-screen install + permission grant. We
 
 1. **Weekly Reflection** — Sunday 9pm PST, summary of patterns
 1. **Intervention check-in** — Day 14 and Day 28 of any active intervention
-1. **Pattern alert** — when something unusual emerges mid-week (“3 headaches in 3 days, first time in 6 weeks”)
-1. **Predictive prompt** — based on learned patterns (“Friday afternoon historically = poor sleep, want to set wind-down?”)
-1. **Agent disagreement** — when active agents would disagree on a logged behavior
+1. **Pattern alert** — when a hard threshold is crossed (e.g., “3 headaches in 3 days, first time in 6 weeks”). Triggered by deterministic rules, not by an LLM hunch.
 
 ### What NOT to send
 
@@ -377,6 +332,11 @@ iOS PWA push notifications work after home-screen install + permission grant. We
 - Streaks or gamification
 - Recap summaries — nobody reads them
 - Generic medical advice
+- Predictive nudges (“Friday afternoon = poor sleep, want to wind down?”) — violates the no-preaching rule
+
+### iOS PWA reliability caveat
+
+iOS push for PWAs is real but flaky. Treat push as a best-effort layer; the source of truth remains the dashboard. Insights are surfaced in-app the next time Jon opens it regardless of whether the push delivered.
 
 ### Settings
 
@@ -420,30 +380,30 @@ Voice command “took morning stack” logs all morning items in one go.
 
 ### Model selection
 
-- **Haiku** for: intent classification, parsing voice notes, supplement matching, short confirmations
-- **Sonnet** for: agent conversations, weekly insights, cross-domain pattern hunting, bloodwork prediction
-- **Never Opus** unless explicitly testing — costs don’t justify it for this use case
+- **Haiku** (`claude-haiku-4-5-20251001`) for: intent classification, parsing voice notes, supplement matching, daily digests
+- **Sonnet** (`claude-sonnet-4-6`) for: weekly reflection, intervention reports, bloodwork expectations
+- **Never Opus** for this app
 
-### Context management
+### Architecture for low cost
 
-- Daily summary checkpoint: at end of day, Sonnet summarizes the day into ~200 tokens
-- Weekly summary checkpoint: at end of week, summarizes the week into ~500 tokens
-- Monthly summary checkpoint: ~1000 tokens
-- Agent conversations load: last 7 days raw + last 4 weekly summaries + relevant interventions, not full history
+1. **Daily Haiku digest.** Every night, Haiku compresses the day’s entries into ~200 tokens. Weekly Sonnet runs on 7 short digests, not raw data. This is the single biggest lever.
+2. **Anthropic prompt caching** for system prompts and Jon’s static background block — ~90% discount on cached input tokens.
+3. **Anthropic batch API** for the weekly reflection and bloodwork expectations (neither is time-critical) — 50% discount.
+4. **No nightly Sonnet job.** Patterns are weekly only.
+5. **No in-app open-ended chat.** Ask AI export routes that workload to Jon’s own Claude/ChatGPT subscription, so it costs us $0.
+6. **TTS deferred** to post-v1.
 
-### Caching
+### Storage
 
-- Agent knowledge bases cached server-side (don’t reload Attia’s framework summary every chat)
-- Use Anthropic’s prompt caching for repeated context blocks
-- Audio files: keep 30 days, then delete; transcripts kept forever
+- Audio files: 30-day lifecycle on Supabase Storage, then auto-deleted
+- Transcripts: kept forever (small)
 
-### Estimated monthly cost (Jon’s expected usage)
+### Estimated monthly cost (post-simplification)
 
-- Whisper: ~$1/month
-- Haiku parsing: ~$1-2/month
-- Sonnet (agents, insights, predictions): ~$10-20/month
-- TTS (ElevenLabs starter or OpenAI TTS): ~$5/month
-- **Total: $15-25/month** in API fees (separate from Claude Max subscription, which doesn’t cover API)
+- Whisper: ~$1
+- Haiku (intent + parsing + daily digests): ~$1-2
+- Sonnet (weekly reflection + occasional bloodwork expectations + intervention reports): ~$3-5 with caching and batch discounts
+- **Total: $5-10/month**
 
 -----
 
@@ -451,51 +411,41 @@ Voice command “took morning stack” logs all morning items in one go.
 
 ### Phase 1 — Capture loop (ship first)
 
-- Next.js + Tailwind scaffold
-- Supabase schema (entries, structured_data, supplements, known_stack)
-- `/capture` route with record → Whisper → Haiku parse → store
-- Basic dashboard showing today’s entries
+- Next.js + Tailwind scaffold with design tokens
+- Supabase schema applied; Jon’s user row + known stack seeded
+- Supabase magic-link auth
+- `/capture` route: record → Whisper → Haiku parse → store
+- Transcript tap-to-edit; saving an edit re-fires the parse
+- Save on stop only (no autosave timer)
+- Offline queue (IndexedDB + service worker background sync)
+- Dashboard `/` showing today’s totals + today’s log (reverse chronological)
+- PWA manifest + service worker
 - Back tap shortcut documented in README
-- PWA manifest + home-screen install instructions
 
-**Definition of done:** Jon can back-tap, talk, and see structured data on the dashboard within 10 seconds.
+**Definition of done:** back tap → talk → release → structured data on the dashboard inside 10 seconds online; queued and synced when offline.
 
-### Phase 2 — Workout mode + voice responses
+### Phase 2 — Insights + interventions + Ask AI
 
-- `/workout` route with continuous-listening UI
-- Workout-specific schema and session grouping
-- Sonnet workout coaching responses
-- ElevenLabs/OpenAI TTS integration
-- Wake word optional (Web Speech API in workout mode only)
+- Daily Haiku digest cron (midnight PST)
+- Weekly Sonnet reflection cron (Sunday 9pm PST, batch API)
+- Intervention day 14 / day 28 diff views (in-app)
+- `Ask AI` export sheet with templates, scope selector, copy + deep links
+- Insights dashboard surfaces
 
-### Phase 3 — Agents
+### Phase 3 — Workout mode + bloodwork
 
-- Agent builder conversational UI
-- Agent panel system (right-side overlay, multi-agent support)
-- Voice routing to agents (“ask Arnold…”)
-- Confidence tier evaluation
-- “Ask all” feature
+- `/workout` route: tap-to-record per set, screen wake lock, session grouping (same-day or 90-min window)
+- `/bloodwork`: PDF upload → confirm extracted values → save
+- Bloodwork expectations: Sonnet call per planned draw → expected ranges; scored after actual upload
 
-### Phase 4 — Insights engine
+### Phase 4 — Notifications + settings + polish
 
-- Weekly Reflection cron job
-- Intervention tracking + Day 14/28 reports
-- Cross-domain pattern hunting nightly job
-- Insights dashboard tab
+- Web Push subscription + Vercel cron-triggered sends
+- Settings page (notification toggles, quiet hours, export, data wipe)
+- Markdown export
+- Performance pass
 
-### Phase 5 — Bloodwork + predictions
-
-- PDF upload + parse (NiaHealth format first)
-- Bloodwork vault with trends
-- Predictive model for next labs
-- Track prediction accuracy
-
-### Phase 6 — Polish
-
-- Push notifications (Web Push API)
-- Settings page
-- Export to markdown / Obsidian sync
-- Performance optimization, offline support
+**Phases 5-6 are reserved for things that emerge from daily use. Don’t pre-commit to them.**
 
 -----
 
@@ -515,36 +465,40 @@ signal/
 │   ├── page.tsx              (dashboard)
 │   ├── capture/page.tsx
 │   ├── workout/page.tsx
-│   ├── agents/page.tsx
 │   ├── insights/page.tsx
 │   ├── bloodwork/page.tsx
+│   ├── settings/page.tsx
 │   └── api/
 │       ├── transcribe/route.ts
 │       ├── parse/route.ts
-│       ├── agent/[name]/route.ts
-│       ├── tts/route.ts
-│       ├── insights/weekly/route.ts
-│       └── cron/patterns/route.ts
+│       ├── export/route.ts            (assembles Ask AI prompt)
+│       ├── insights/weekly/route.ts   (Sunday cron)
+│       ├── insights/daily/route.ts    (midnight cron, Haiku digest)
+│       └── bloodwork/expect/route.ts
 ├── lib/
 │   ├── supabase.ts
 │   ├── anthropic.ts
 │   ├── whisper.ts
-│   ├── tts.ts
-│   ├── prompts/
-│   │   ├── intent.ts
-│   │   ├── parse-health.ts
-│   │   ├── parse-workout.ts
-│   │   ├── weekly-reflection.ts
-│   │   └── agent-template.ts
-│   └── agents/
-│       └── builder.ts
+│   ├── export.ts                       (prompt templates for Ask AI)
+│   ├── offline-queue.ts                (IndexedDB queue helpers)
+│   └── prompts/
+│       ├── intent.ts
+│       ├── parse-health.ts
+│       ├── parse-workout.ts
+│       ├── parse-supplement.ts
+│       ├── parse-intervention.ts
+│       ├── daily-digest.ts
+│       ├── weekly-reflection.ts
+│       └── bloodwork-expectations.ts
 ├── components/
 │   ├── RecordButton.tsx
-│   ├── AgentPanel.tsx
+│   ├── TranscriptEditor.tsx
+│   ├── AskAISheet.tsx
 │   ├── InsightCard.tsx
 │   └── ...
 └── public/
     ├── manifest.json
+    ├── sw.js                           (service worker: PWA + offline sync)
     └── icons/
 ```
 
@@ -557,9 +511,14 @@ signal/
 - Wearable integration (Apple Health, Whoop, Oura)
 - Social/sharing features
 - Full macro breakdown beyond protein / fiber / added sugars / calories
-- Voice cloning of real people
+- In-app open-ended LLM chat (replaced by Ask AI export to user’s own Claude/ChatGPT)
+- Persona agents (Attia, Huberman, Arnold) — defer indefinitely; revisit only after a credible knowledge-base sourcing story
+- Voice cloning of real people — never
+- Nightly cross-domain pattern hunting (insufficient n; would hallucinate)
+- TTS / voice replies in v1
+- Wake words and continuous listening (unreliable on iOS Safari)
 - Apple Watch companion
-- Streaks, gamification, or scoring
+- Streaks, gamification, scoring, predictive nudges
 
 These can be revisited once core loop is solid and Jon is using it daily.
 
@@ -567,11 +526,9 @@ These can be revisited once core loop is solid and Jon is using it daily.
 
 ## Open questions to resolve during build
 
-1. Magic link vs simple passcode for the auth gate? (Just Jon, so probably passcode.)
-1. Should voice notes auto-delete from Supabase Storage after 30 days, or keep until manually deleted?
-1. ElevenLabs vs OpenAI TTS for agent voices — quick A/B test in Phase 2.
-1. Wake word library: built-in Web Speech API vs a tiny on-device model — test in Phase 2.
-1. Bloodwork PDF parsing reliability — may need fallback to manual entry confirmation.
+1. Bloodwork PDF parsing reliability (NiaHealth format) — may need a manual-confirm step.
+2. Does Claude.ai support a `?q=` deep-link for new chats? If not, Ask AI falls back to clipboard-only with a one-tap “Open Claude.ai” link.
+3. Service-worker background sync support on iOS Safari is partial — confirm the offline queue actually flushes on next foreground if SW sync isn’t available.
 
 -----
 

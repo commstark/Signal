@@ -6,7 +6,7 @@
 -- Extensions
 -- =====================================================================
 create extension if not exists "uuid-ossp";
-create extension if not exists "vector";  -- for future semantic search over transcripts
+-- Note: vector extension intentionally not enabled. Add when semantic search is built.
 
 -- =====================================================================
 -- Users (minimal — just Jon, but parameterized for later)
@@ -27,8 +27,9 @@ create table if not exists entries (
   occurred_at       timestamptz not null default now(),   -- when the user recorded it (PST)
   audio_url         text,                                  -- Supabase Storage path; nullable after 30d auto-delete
   audio_duration_s  numeric(6,2),
-  transcript        text not null,                         -- raw Whisper output, kept forever
-  intent            text not null,                         -- 'health_log' | 'workout_log' | 'supplement_log' | 'agent_question' | 'data_query' | 'intervention_start' | 'intervention_stop' | 'free_note' | 'mixed'
+  transcript        text not null,                         -- raw Whisper output, kept forever; user-editable
+  transcript_edited boolean not null default false,        -- true if user corrected the Whisper output
+  intent            text not null,                         -- 'health_log' | 'workout_log' | 'supplement_log' | 'intervention_start' | 'intervention_stop' | 'free_note' | 'mixed'
   parse_model       text,                                  -- e.g. 'claude-haiku-4-5'
   parse_cost_usd    numeric(8,5),
   created_at        timestamptz not null default now()
@@ -46,6 +47,9 @@ create table if not exists health_logs (
   user_id             uuid not null references users(id) on delete cascade,
   occurred_at         timestamptz not null,
 
+  -- link to active intervention if any (FK added after interventions table is defined; see end of file)
+  intervention_id     uuid,
+
   -- nutrition (focused subset — protein is the headline; calories secondary, low-precision)
   protein_g             numeric(6,2),
   calories_kcal         numeric(7,1),
@@ -54,10 +58,9 @@ create table if not exists health_logs (
   saturated_fat_present boolean,
   carb_timing           text,                                -- 'morning' | 'midday' | 'evening' | 'late_night'
   ultra_processed       boolean,
-  food_items            jsonb,                               -- [{name, portion, notes}]
   nutrition_confidence  text,                                -- 'high' | 'medium' | 'low'
 
-  -- subjective markers
+  -- subjective markers (scores are null unless explicitly stated in the transcript)
   mood_score          int check (mood_score between 1 and 10),
   mood_descriptor     text,
   energy_score        int check (energy_score between 1 and 10),
@@ -76,6 +79,24 @@ create table if not exists health_logs (
 );
 
 create index health_logs_user_occurred_idx on health_logs (user_id, occurred_at desc);
+create index health_logs_intervention_idx on health_logs (intervention_id) where intervention_id is not null;
+
+-- Normalized food items so pattern hunting can query "how often did Jon eat beans"
+-- without jsonb gymnastics.
+create table if not exists food_log_items (
+  id              uuid primary key default uuid_generate_v4(),
+  health_log_id   uuid not null references health_logs(id) on delete cascade,
+  user_id         uuid not null references users(id) on delete cascade,
+  name            text not null,                           -- 'bean salad over rice'
+  canonical_tag   text,                                    -- 'beans', 'rice', 'olive_oil', 'fermented' — lowercase, snake_case
+  portion         text,                                    -- 'large bowl', '1 cup', '15 ml'
+  notes           text,
+  occurred_at     timestamptz not null,
+  created_at      timestamptz not null default now()
+);
+
+create index food_log_items_user_tag_idx       on food_log_items (user_id, canonical_tag, occurred_at desc);
+create index food_log_items_health_log_idx     on food_log_items (health_log_id);
 
 -- =====================================================================
 -- Workouts — sessions, exercises, sets
@@ -96,6 +117,7 @@ create table if not exists workout_exercises (
   session_id      uuid not null references workout_sessions(id) on delete cascade,
   entry_id        uuid references entries(id) on delete set null,  -- which voice note logged this
   user_id         uuid not null references users(id) on delete cascade,
+  intervention_id uuid,                                              -- FK added at end of file
   exercise_name   text not null,                                    -- 'barbell bench press'
   muscle_group    text,                                              -- 'chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'full_body'
   occurred_at     timestamptz not null,
@@ -105,13 +127,13 @@ create table if not exists workout_exercises (
 
 create index workout_exercises_user_occurred_idx on workout_exercises (user_id, occurred_at desc);
 create index workout_exercises_muscle_idx        on workout_exercises (user_id, muscle_group, occurred_at desc);
+create index workout_exercises_intervention_idx  on workout_exercises (intervention_id) where intervention_id is not null;
 
 create table if not exists workout_sets (
   id            uuid primary key default uuid_generate_v4(),
   exercise_id   uuid not null references workout_exercises(id) on delete cascade,
   set_number    int not null,
   weight_lb     numeric(6,2),
-  weight_kg     numeric(6,2),                            -- generated for queries; UI shows lb by default
   reps          int,
   rpe           numeric(3,1),                            -- rate of perceived exertion 1-10
   notes         text,
@@ -144,6 +166,7 @@ create table if not exists supplement_logs (
   user_id         uuid not null references users(id) on delete cascade,
   entry_id        uuid references entries(id) on delete set null,
   supplement_id   uuid references supplements(id) on delete set null,
+  intervention_id uuid,                                  -- FK added at end of file
   supplement_name text not null,                       -- denormalized for resilience
   occurred_at     timestamptz not null,
   taken           boolean not null default true,        -- false if explicitly skipped
@@ -152,6 +175,7 @@ create table if not exists supplement_logs (
 );
 
 create index supplement_logs_user_occurred_idx on supplement_logs (user_id, occurred_at desc);
+create index supplement_logs_intervention_idx on supplement_logs (intervention_id) where intervention_id is not null;
 
 -- =====================================================================
 -- Interventions — anything Jon changes (start/stop a supplement, food, behavior)
@@ -197,56 +221,8 @@ create table if not exists insights (
 create index insights_user_surfaced_idx on insights (user_id, surfaced_at desc);
 create index insights_kind_idx          on insights (user_id, kind, surfaced_at desc);
 
--- =====================================================================
--- Agents — user-built health agents (Attia, Huberman, Arnold, etc.)
--- =====================================================================
-create table if not exists agents (
-  id                  uuid primary key default uuid_generate_v4(),
-  user_id             uuid not null references users(id) on delete cascade,
-  name                text not null,                       -- display name, can be customized: "Attia (lipids)"
-  public_figure       text,                                -- canonical name searched for
-  focus_areas         text[],                              -- ['longevity', 'lipids']
-  citation_style      text not null default 'summarize',   -- 'quote_sources' | 'summarize'
-  tone                text not null default 'direct',      -- 'direct' | 'encouraging' | 'blunt'
-  data_access_level   text not null default 'full',        -- 'full' | 'metrics_only' | 'none'
-  off_limits_topics   text[],
-  knowledge_summary   text,                                -- auto-generated description of source material
-  confidence_tier     int,                                 -- 1-4
-  sources_found       jsonb,                               -- [{type, title, count}]
-  voice_id            text,                                -- ElevenLabs voice id (synthetic, never a clone)
-  system_prompt       text,                                -- compiled at build time, regenerable
-  active              boolean not null default true,
-  created_at          timestamptz not null default now()
-);
-
-create index agents_user_active_idx on agents (user_id, active);
-
-create table if not exists agent_conversations (
-  id          uuid primary key default uuid_generate_v4(),
-  user_id     uuid not null references users(id) on delete cascade,
-  agent_id    uuid not null references agents(id) on delete cascade,
-  title       text,                                        -- first-message-derived
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now()
-);
-
-create index agent_conversations_user_updated_idx on agent_conversations (user_id, updated_at desc);
-
-create table if not exists agent_messages (
-  id              uuid primary key default uuid_generate_v4(),
-  conversation_id uuid not null references agent_conversations(id) on delete cascade,
-  user_id         uuid not null references users(id) on delete cascade,
-  role            text not null,                            -- 'user' | 'agent'
-  content         text not null,
-  citations       jsonb,                                    -- [{source, snippet}]
-  entry_id        uuid references entries(id) on delete set null,  -- if voice-asked
-  model           text,
-  cost_usd        numeric(8,5),
-  reaction        text,                                     -- 'up' | 'down' | null
-  created_at      timestamptz not null default now()
-);
-
-create index agent_messages_conv_idx on agent_messages (conversation_id, created_at);
+-- Agent tables intentionally removed: open-ended chat happens in Claude/ChatGPT
+-- via the Ask AI export. We don't store agents, conversations, or messages.
 
 -- =====================================================================
 -- Bloodwork — lab results over time
@@ -282,25 +258,27 @@ create table if not exists bloodwork_markers (
 create index bloodwork_markers_user_marker_idx on bloodwork_markers (user_id, marker_key);
 
 -- =====================================================================
--- Predictions — track bloodwork prediction accuracy over time
+-- Bloodwork expectations — "what should I be hoping to see at the next draw"
+-- Set before a planned draw, scored after the actual upload.
 -- =====================================================================
-create table if not exists bloodwork_predictions (
+create table if not exists bloodwork_expectations (
   id                  uuid primary key default uuid_generate_v4(),
   user_id             uuid not null references users(id) on delete cascade,
-  predicted_for_date  date not null,
+  expected_for_date   date not null,                        -- planned draw date
   marker_key          text not null,
-  predicted_low       numeric(10,4),
-  predicted_high      numeric(10,4),
-  rationale           text,
+  expected_low        numeric(10,4),
+  expected_high       numeric(10,4),
+  direction           text,                                  -- 'down' | 'up' | 'hold'
+  rationale           text,                                  -- 'fiber up 40%, added sugar down -> A1c likely lower'
   model               text,
   cost_usd            numeric(8,5),
   actual_value        numeric(10,4),                        -- filled in after draw
   actual_draw_id      uuid references bloodwork_draws(id),
-  accuracy_score      numeric(4,3),                         -- 0-1, computed after actual is set
+  outcome             text,                                  -- 'hit' | 'miss' | 'direction_correct'
   created_at          timestamptz not null default now()
 );
 
-create index bloodwork_predictions_user_marker_idx on bloodwork_predictions (user_id, marker_key, predicted_for_date desc);
+create index bloodwork_expectations_user_marker_idx on bloodwork_expectations (user_id, marker_key, expected_for_date desc);
 
 -- =====================================================================
 -- Summaries — rolling checkpoints for context management
@@ -308,7 +286,7 @@ create index bloodwork_predictions_user_marker_idx on bloodwork_predictions (use
 create table if not exists summaries (
   id           uuid primary key default uuid_generate_v4(),
   user_id      uuid not null references users(id) on delete cascade,
-  scope        text not null,                              -- 'daily' | 'weekly' | 'monthly'
+  scope        text not null,                              -- 'daily' (Haiku digest) | 'weekly' (Sonnet reflection). Monthly added later if needed.
   period_start timestamptz not null,
   period_end   timestamptz not null,
   body         text not null,                              -- the LLM summary
@@ -326,7 +304,7 @@ create index summaries_user_scope_idx on summaries (user_id, scope, period_start
 create table if not exists notifications (
   id           uuid primary key default uuid_generate_v4(),
   user_id      uuid not null references users(id) on delete cascade,
-  kind         text not null,                              -- 'weekly_reflection' | 'intervention_check' | 'pattern_alert' | 'predictive_prompt'
+  kind         text not null,                              -- 'weekly_reflection' | 'intervention_check' | 'pattern_alert'
   title        text not null,
   body         text not null,
   insight_id   uuid references insights(id) on delete set null,
@@ -357,8 +335,8 @@ create table if not exists push_subscriptions (
 create table if not exists api_usage (
   id            uuid primary key default uuid_generate_v4(),
   user_id       uuid not null references users(id) on delete cascade,
-  service       text not null,                               -- 'whisper' | 'anthropic' | 'elevenlabs' | 'openai_tts'
-  model         text,                                        -- 'claude-haiku-4-5', 'claude-sonnet-4-6', 'whisper-1'
+  service       text not null,                               -- 'whisper' | 'anthropic'
+  model         text,                                        -- 'claude-haiku-4-5-20251001', 'claude-sonnet-4-6', 'whisper-1'
   endpoint      text,
   input_tokens  int,
   output_tokens int,
@@ -395,28 +373,42 @@ create index api_usage_service_idx       on api_usage (user_id, service, created
 --   ('JON_UUID', 'Melatonin',                             '1mg',              'night',      'sleep_stack');
 
 -- =====================================================================
+-- Deferred foreign keys (intervention_id) — added here because health_logs,
+-- supplement_logs, and workout_exercises are defined before interventions.
+-- =====================================================================
+alter table health_logs
+  add constraint health_logs_intervention_id_fkey
+  foreign key (intervention_id) references interventions(id) on delete set null;
+
+alter table supplement_logs
+  add constraint supplement_logs_intervention_id_fkey
+  foreign key (intervention_id) references interventions(id) on delete set null;
+
+alter table workout_exercises
+  add constraint workout_exercises_intervention_id_fkey
+  foreign key (intervention_id) references interventions(id) on delete set null;
+
+-- =====================================================================
 -- RLS — simple gate. Single user, but enable for safety in case multi-user later.
 -- =====================================================================
-alter table users                  enable row level security;
-alter table entries                enable row level security;
-alter table health_logs            enable row level security;
-alter table workout_sessions       enable row level security;
-alter table workout_exercises      enable row level security;
-alter table workout_sets           enable row level security;
-alter table supplements            enable row level security;
-alter table supplement_logs        enable row level security;
-alter table interventions          enable row level security;
-alter table insights               enable row level security;
-alter table agents                 enable row level security;
-alter table agent_conversations    enable row level security;
-alter table agent_messages         enable row level security;
-alter table bloodwork_draws        enable row level security;
-alter table bloodwork_markers      enable row level security;
-alter table bloodwork_predictions  enable row level security;
-alter table summaries              enable row level security;
-alter table notifications          enable row level security;
-alter table push_subscriptions     enable row level security;
-alter table api_usage              enable row level security;
+alter table users                    enable row level security;
+alter table entries                  enable row level security;
+alter table health_logs              enable row level security;
+alter table food_log_items           enable row level security;
+alter table workout_sessions         enable row level security;
+alter table workout_exercises        enable row level security;
+alter table workout_sets             enable row level security;
+alter table supplements              enable row level security;
+alter table supplement_logs          enable row level security;
+alter table interventions            enable row level security;
+alter table insights                 enable row level security;
+alter table bloodwork_draws          enable row level security;
+alter table bloodwork_markers        enable row level security;
+alter table bloodwork_expectations   enable row level security;
+alter table summaries                enable row level security;
+alter table notifications            enable row level security;
+alter table push_subscriptions       enable row level security;
+alter table api_usage                enable row level security;
 
 -- Permissive policy for the single-user case. Replace with auth.uid() checks when going multi-user.
 -- For now: rely on service-role key from Next.js API routes, no anonymous access.
