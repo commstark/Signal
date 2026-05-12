@@ -394,19 +394,19 @@ Pre-populate this in the `supplements` table:
 - Fish oil
 - New Chapter men’s multivitamin
 - Ashwagandha with black pepper
-
-**Throughout day:**
-
-- Vitamin C 500mg (split AM/PM)
+- K2 (120 mcg)
+- Inositol powder (CanPrev or AOR), 500mg — current intervention
+- Cold-pressed extra virgin olive oil, 15 ml
 
 **With meals:**
 
-- Collagen peptides (9g) + protein powder
-- Inositol powder (CanPrev or AOR) — current intervention, breakfast or lunch
+- Protein powder
 
 **Night:**
 
-- Magnesium glycinate
+- Collagen peptides (9g)
+- Vitamin C 500mg
+- Magnesium bisglycinate 400mg
 - L-theanine + glycine
 - Melatonin 1mg
 

@@ -376,20 +376,22 @@ create index api_usage_service_idx       on api_usage (user_id, service, created
 -- Run AFTER inserting Jon's user row. Replace the UUID below with Jon's actual user.id.
 
 -- insert into supplements (user_id, name, dose, timing, stack_group) values
---   ('JON_UUID', 'Vitamin D3',          '2500-3000 IU', 'morning',     'morning_stack'),
---   ('JON_UUID', 'Boswellia',           null,           'morning',     'morning_stack'),
---   ('JON_UUID', 'Turmeric + pepper',   null,           'morning',     'morning_stack'),
---   ('JON_UUID', 'Fish oil',            null,           'morning',     'morning_stack'),
---   ('JON_UUID', 'Multivitamin',        'New Chapter mens', 'morning', 'morning_stack'),
---   ('JON_UUID', 'Ashwagandha + pepper',null,           'morning',     'morning_stack'),
---   ('JON_UUID', 'Vitamin C',           '500mg',        'with_meals',  null),
---   ('JON_UUID', 'Collagen peptides',   '9g',           'with_meals',  null),
---   ('JON_UUID', 'Protein powder',      null,           'with_meals',  null),
---   ('JON_UUID', 'Inositol',            '500mg',        'with_meals',  null),
---   ('JON_UUID', 'Magnesium glycinate', null,           'night',       'sleep_stack'),
---   ('JON_UUID', 'L-theanine',          null,           'night',       'sleep_stack'),
---   ('JON_UUID', 'Glycine',             null,           'night',       'sleep_stack'),
---   ('JON_UUID', 'Melatonin',           '1mg',          'night',       'sleep_stack');
+--   ('JON_UUID', 'Vitamin D3',                            '2500-3000 IU',     'morning',    'morning_stack'),
+--   ('JON_UUID', 'Boswellia',                             null,               'morning',    'morning_stack'),
+--   ('JON_UUID', 'Turmeric + pepper',                     null,               'morning',    'morning_stack'),
+--   ('JON_UUID', 'Fish oil',                              null,               'morning',    'morning_stack'),
+--   ('JON_UUID', 'Multivitamin',                          'New Chapter mens', 'morning',    'morning_stack'),
+--   ('JON_UUID', 'Ashwagandha + pepper',                  null,               'morning',    'morning_stack'),
+--   ('JON_UUID', 'K2',                                    '120 mcg',          'morning',    'morning_stack'),
+--   ('JON_UUID', 'Inositol',                              '500mg',            'morning',    'morning_stack'),
+--   ('JON_UUID', 'Extra virgin olive oil (cold pressed)', '15 ml',            'morning',    'morning_stack'),
+--   ('JON_UUID', 'Protein powder',                        null,               'with_meals', null),
+--   ('JON_UUID', 'Collagen peptides',                     '9g',               'night',      'sleep_stack'),
+--   ('JON_UUID', 'Vitamin C',                             '500mg',            'night',      'sleep_stack'),
+--   ('JON_UUID', 'Magnesium bisglycinate',                '400mg',            'night',      'sleep_stack'),
+--   ('JON_UUID', 'L-theanine',                            null,               'night',      'sleep_stack'),
+--   ('JON_UUID', 'Glycine',                               null,               'night',      'sleep_stack'),
+--   ('JON_UUID', 'Melatonin',                             '1mg',              'night',      'sleep_stack');
 
 -- =====================================================================
 -- RLS — simple gate. Single user, but enable for safety in case multi-user later.
