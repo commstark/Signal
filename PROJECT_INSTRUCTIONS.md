@@ -198,22 +198,33 @@ Each food item passes through a lightweight nutrition estimator. Use a simple LL
 
 ## The insights engine
 
-Two layers. Nightly cross-domain hunting is explicitly out — at this data volume it would hallucinate more than it would find.
+Two layers. There is no standalone nightly job — cross-domain hunting is folded into the weekly reflection so we get the signal without 30x the cron noise.
 
-### 1. Weekly reflection
+### 1. Weekly reflection (intra-week patterns + cross-domain over history)
 
 Every Sunday at 9pm PST, run the **Weekly Reflection**:
 
 - Sonnet receives the **raw** last 7 days: full transcripts + structured rows (health_logs, food_log_items, workout sessions/exercises/sets, supplement_logs, interventions). No pre-compression.
+- Sonnet also receives the last 8 weekly summaries from the `summaries` table — this is the cross-domain history. Early on (weeks 1-4) this is small and cross-domain findings will be flagged low_confidence by definition; as history accumulates the cross-domain dimension gets real.
 - A small static "background" block (Jon's age, BJJ practice, current focus on insulin sensitivity, active interventions snapshot) is included and prompt-cached at the Anthropic API level for ~90% input discount on subsequent runs.
-- 7 days of raw data is roughly 15-25K tokens — Sonnet 4.6 has 200K context, so we have 10x headroom.
-- Prompt: find up to 3 patterns, observational only. Every finding must include n. If n < 3, say so explicitly.
-- Output format: matter-of-fact, no prescriptions.
-- Examples:
-  - “Morning energy: 7.4 avg on inositol-with-breakfast days, 6.1 on inositol-with-lunch days. n=12.”
-  - “Headache mentions: 4 this week vs 0 last week. n=1 week comparison, low confidence.”
+- 7 days of raw is ~15-25K tokens; 8 weekly summaries are ~4K tokens. Total prompt comfortably under 35K. Sonnet 4.6 has 200K context.
 
-Stored in `insights` table. Surfaced on dashboard. Optional push notification.
+**The prompt has two halves:**
+
+1. **Intra-week patterns** — what stood out in the last 7 days? (e.g., "headache mentions: 4 this week vs 0 last week").
+2. **Cross-domain correlations across history** — patterns that span weeks and link domains that aren't usually tracked together (e.g., garden activity → BJJ performance; late screen-time → next-day energy; specific foods → mood next morning).
+
+**Hard rules applied to every finding:**
+
+- Must declare n explicitly.
+- If n < 5, automatically tagged `confidence=low_n`. UI shows a `low n` badge.
+- Each finding cites the underlying rows so Jon can sanity-check.
+- Observational only, never prescriptive. No "you should."
+- Max 3 intra-week findings + 2 cross-domain findings per run.
+
+Stored in `insights` table, one row per finding (`kind='pattern'`) plus one summary row (`kind='weekly_reflection'`). Surfaced on dashboard. Optional push notification linking to the summary.
+
+After the run, a Haiku call generates that week's ~500-token summary and writes it to `summaries(scope='weekly')` — this becomes input for next week's cross-domain pass. This is the one place a Haiku compression is justified: building the history for the cross-domain dimension over time.
 
 ### 2. Intervention tracking
 
@@ -389,10 +400,11 @@ Voice command “took morning stack” logs all morning items in one go.
 
 1. **Anthropic prompt caching** for the system prompt + Jon's static background block on the weekly reflection — ~90% discount on cached input tokens.
 2. **Anthropic batch API** for the weekly reflection and bloodwork expectations (neither is time-critical) — 50% discount.
-3. **No nightly Sonnet job.** Patterns are weekly only.
-4. **No daily digest pre-compression.** Tested: digest path saved ~5-10¢/month versus sending raw data to Sonnet. Sonnet's on-the-fly compression with full context beats Haiku's pre-compression, and removes a cron job. Send raw.
-5. **No in-app open-ended chat.** Ask AI export routes that workload to Jon's own Claude/ChatGPT subscription, so it costs us $0.
-6. **TTS deferred** to post-v1.
+3. **No nightly Sonnet job.** Cross-domain hunting runs once a week, folded into the weekly reflection. Patterns are weekly only.
+4. **No daily digest pre-compression.** Tested: digest path saved ~5-10¢/month versus sending raw data to Sonnet. Sonnet's on-the-fly compression with full context beats Haiku's pre-compression. Send raw.
+5. **One Haiku call per week** generates a ~500-token summary that feeds next week's cross-domain pass. Cheap, and the only compression worth keeping.
+6. **No in-app open-ended chat.** Ask AI export routes that workload to Jon's own Claude/ChatGPT subscription, so it costs us $0.
+7. **TTS deferred** to post-v1.
 
 ### Storage
 
@@ -427,7 +439,8 @@ Voice command “took morning stack” logs all morning items in one go.
 
 ### Phase 2 — Insights + interventions + Ask AI
 
-- Weekly Sonnet reflection cron (Sunday 9pm PST, batch API, raw data input with prompt-cached background block)
+- Weekly Sonnet reflection cron (Sunday 9pm PST, batch API, raw data + 8 prior weekly summaries, prompt-cached background block) — finds intra-week patterns AND cross-domain correlations across history. Hard `low_n` tagging for n<5.
+- Haiku weekly summarizer that writes a ~500-token row into `summaries(scope='weekly')` after each reflection — this is what next week's cross-domain pass reads.
 - Intervention day 14 / day 28 diff views (in-app)
 - `Ask AI` export sheet with templates, scope selector, copy + deep links
 - Insights dashboard surfaces
