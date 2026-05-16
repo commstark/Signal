@@ -9,15 +9,38 @@ create extension if not exists "uuid-ossp";
 -- Note: vector extension intentionally not enabled. Add when semantic search is built.
 
 -- =====================================================================
--- Users (minimal — just Jon, but parameterized for later)
+-- Users (profile data; id matches Supabase auth.users.id)
 -- =====================================================================
+-- A trigger (defined below) auto-inserts a row here whenever a new
+-- auth.users row is created via magic-link sign-in. profile_md and
+-- timezone can be edited from Settings later.
 create table if not exists users (
-  id          uuid primary key default uuid_generate_v4(),
+  id          uuid primary key references auth.users(id) on delete cascade,
   email       text unique,
   timezone    text not null default 'America/Los_Angeles',
   profile_md  text,                                         -- free-text health background (markdown), fed into Sonnet as cached context
   created_at  timestamptz not null default now()
 );
+
+-- Auto-create a public.users row whenever someone signs in for the first time.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.users (id, email)
+  values (new.id, new.email)
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
 
 -- =====================================================================
 -- Entries — every voice note becomes one row here
@@ -371,25 +394,37 @@ create index api_usage_service_idx       on api_usage (user_id, service, created
 -- =====================================================================
 -- Seed data — Jon's known supplement stack
 -- =====================================================================
--- Run AFTER inserting Jon's user row. Replace the UUID below with Jon's actual user.id.
+-- Run AFTER you've signed in via magic-link at least once (which creates
+-- your auth.users row and, via the trigger above, your public.users row).
+-- This block finds your user id automatically; no UUID copy/paste needed.
 
--- insert into supplements (user_id, name, dose, timing, stack_group) values
---   ('JON_UUID', 'Vitamin D3',                            '2500-3000 IU',     'morning',    'morning_stack'),
---   ('JON_UUID', 'Boswellia',                             null,               'morning',    'morning_stack'),
---   ('JON_UUID', 'Turmeric + pepper',                     null,               'morning',    'morning_stack'),
---   ('JON_UUID', 'Fish oil',                              null,               'morning',    'morning_stack'),
---   ('JON_UUID', 'Multivitamin',                          'New Chapter mens', 'morning',    'morning_stack'),
---   ('JON_UUID', 'Ashwagandha + pepper',                  null,               'morning',    'morning_stack'),
---   ('JON_UUID', 'K2',                                    '120 mcg',          'morning',    'morning_stack'),
---   ('JON_UUID', 'Inositol',                              '500mg',            'morning',    'morning_stack'),
---   ('JON_UUID', 'Extra virgin olive oil (cold pressed)', '15 ml',            'morning',    'morning_stack'),
---   ('JON_UUID', 'Protein powder',                        null,               'with_meals', null),
---   ('JON_UUID', 'Collagen peptides',                     '9g',               'night',      'sleep_stack'),
---   ('JON_UUID', 'Vitamin C',                             '500mg',            'night',      'sleep_stack'),
---   ('JON_UUID', 'Magnesium bisglycinate',                '400mg',            'night',      'sleep_stack'),
---   ('JON_UUID', 'L-theanine',                            null,               'night',      'sleep_stack'),
---   ('JON_UUID', 'Glycine',                               null,               'night',      'sleep_stack'),
---   ('JON_UUID', 'Melatonin',                             '1mg',              'night',      'sleep_stack');
+-- do $$
+-- declare
+--   me uuid;
+-- begin
+--   select id into me from users limit 1;
+--   if me is null then
+--     raise exception 'no user row found — sign in via the app first';
+--   end if;
+--
+--   insert into supplements (user_id, name, dose, timing, stack_group) values
+--     (me, 'Vitamin D3',                            '2500-3000 IU',     'morning',    'morning_stack'),
+--     (me, 'Boswellia',                             null,               'morning',    'morning_stack'),
+--     (me, 'Turmeric + pepper',                     null,               'morning',    'morning_stack'),
+--     (me, 'Fish oil',                              null,               'morning',    'morning_stack'),
+--     (me, 'Multivitamin',                          'New Chapter mens', 'morning',    'morning_stack'),
+--     (me, 'Ashwagandha + pepper',                  null,               'morning',    'morning_stack'),
+--     (me, 'K2',                                    '120 mcg',          'morning',    'morning_stack'),
+--     (me, 'Inositol',                              '500mg',            'morning',    'morning_stack'),
+--     (me, 'Extra virgin olive oil (cold pressed)', '15 ml',            'morning',    'morning_stack'),
+--     (me, 'Protein powder',                        null,               'with_meals', null),
+--     (me, 'Collagen peptides',                     '9g',               'night',      'sleep_stack'),
+--     (me, 'Vitamin C',                             '500mg',            'night',      'sleep_stack'),
+--     (me, 'Magnesium bisglycinate',                '400mg',            'night',      'sleep_stack'),
+--     (me, 'L-theanine',                            null,               'night',      'sleep_stack'),
+--     (me, 'Glycine',                               null,               'night',      'sleep_stack'),
+--     (me, 'Melatonin',                             '1mg',              'night',      'sleep_stack');
+-- end $$;
 
 -- =====================================================================
 -- Deferred foreign keys (intervention_id) — added here because health_logs,
