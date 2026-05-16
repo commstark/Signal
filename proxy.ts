@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { supabaseProjectUrl, supabaseAnonKey } from '@/lib/supabase/url';
 
 export async function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
@@ -7,6 +8,7 @@ export async function proxy(req: NextRequest) {
   const isPublic =
     path.startsWith('/login') ||
     path.startsWith('/auth') ||
+    path.startsWith('/api/debug-config') ||
     path.startsWith('/manifest.json') ||
     path.startsWith('/sw.js') ||
     path.startsWith('/icons') ||
@@ -16,11 +18,12 @@ export async function proxy(req: NextRequest) {
   // or broken Supabase configuration can't take down /login.
   if (isPublic) return NextResponse.next({ request: req });
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  // If env vars are missing, send users to /login with a hint instead of crashing.
-  if (!supabaseUrl || !supabaseKey) {
+  let supabaseUrl: string;
+  let supabaseKey: string;
+  try {
+    supabaseUrl = supabaseProjectUrl();
+    supabaseKey = supabaseAnonKey();
+  } catch {
     const url = req.nextUrl.clone();
     url.pathname = '/login';
     url.searchParams.set('error', 'env');
