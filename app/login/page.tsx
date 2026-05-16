@@ -1,9 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { createSupabaseBrowser } from '@/lib/supabase/browser';
 
-export default function LoginPage() {
+function LoginInner() {
+  const params = useSearchParams();
+  const proxyError = params.get('error');
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
@@ -12,7 +15,7 @@ export default function LoginPage() {
     e.preventDefault();
     setStatus('sending');
     const sb = createSupabaseBrowser();
-    const next = new URLSearchParams(window.location.search).get('next') ?? '/';
+    const next = params.get('next') ?? '/';
     const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
     const { error } = await sb.auth.signInWithOtp({
       email,
@@ -33,6 +36,17 @@ export default function LoginPage() {
           <h1 className="text-h1">signal</h1>
           <p className="text-small text-ink-2 mt-1">enter your email to sign in.</p>
         </div>
+
+        {proxyError === 'env' && (
+          <p className="text-small text-signal-red font-mono">
+            server config missing supabase env vars. check vercel project settings.
+          </p>
+        )}
+        {proxyError === 'auth' && (
+          <p className="text-small text-signal-red font-mono">
+            could not contact supabase. check the project url + anon key.
+          </p>
+        )}
 
         {status === 'sent' ? (
           <p className="text-body text-ink-2">
@@ -62,5 +76,13 @@ export default function LoginPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginInner />
+    </Suspense>
   );
 }
