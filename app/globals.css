@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: #0A0A0A;
+    --surface: #161616;
+    --ink: #FAFAFA;
+    --ink-2: #A1A1AA;
+    --ink-3: #52525B;
+    --line: #262626;
+    --accent: #FAFAFA;
+    --accent-fg: #0A0A0A;
+    --signal-red: #EF4444;
+  }
+
+  :root.light {
+    --bg: #FAF8F5;
+    --surface: #FFFFFF;
+    --ink: #0A0A0A;
+    --ink-2: #52525B;
+    --ink-3: #A1A1AA;
+    --line: #E4E4E7;
+    --accent: #0A0A0A;
+    --accent-fg: #FAFAFA;
+    --signal-red: #DC2626;
+  }
+
+  html,
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans), system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

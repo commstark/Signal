@@ -54,7 +54,6 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 ANTHROPIC_API_KEY=
 OPENAI_API_KEY=
-ELEVENLABS_API_KEY=
 
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 
@@ -62,10 +61,9 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 NEXT_PUBLIC_VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
 VAPID_SUBJECT=mailto:jon@example.com
-
-# Simple gate (single user)
-SIGNAL_PASSCODE=
 ```
+
+Auth is Supabase magic-link; no app-side passcode env var.
 
 ### Supabase setup
 
@@ -135,12 +133,10 @@ Set all env vars in the Vercel dashboard. Auto-deploy on push to `main`.
 
 See `PROJECT_INSTRUCTIONS.md` for full phase details.
 
-- **Phase 1** — Capture loop (record → Whisper → parse → store → dashboard)
-- **Phase 2** — Workout mode + voice responses
-- **Phase 3** — Agent builder + agent panels
-- **Phase 4** — Insights engine + intervention tracking
-- **Phase 5** — Bloodwork upload + predictions
-- **Phase 6** — Notifications, settings, polish
+- **Phase 1** — Capture loop (record → Whisper → parse → store → dashboard) with magic-link auth, transcript editing, offline queue
+- **Phase 2** — Insights, intervention tracking, Ask AI export
+- **Phase 3** — Workout mode + bloodwork upload + expectations
+- **Phase 4** — Notifications, settings, polish
 
 Ship Phase 1 first. Don’t build later phases until Phase 1 is in daily use.
 
@@ -157,19 +153,19 @@ README.md                 this file
 app/                      Next.js App Router
   page.tsx                  dashboard
   capture/                  voice capture
-  workout/                  workout mode
-  agents/                   agent list + builder
+  workout/                  workout mode (Phase 3)
   insights/                 patterns + interventions
-  bloodwork/                lab vault + predictor
-  api/                      route handlers (transcribe, parse, agent, tts, crons)
+  bloodwork/                lab vault + expectations
+  settings/                 notification toggles, export, wipe
+  api/                      route handlers (transcribe, parse, export, insights/daily, insights/weekly, bloodwork/expect)
 
 lib/                      core utilities
   supabase.ts               client init
   anthropic.ts              Claude client + helpers
   whisper.ts                Whisper transcription
-  tts.ts                    TTS provider abstraction
-  prompts/                  prompt templates per intent + agent
-  agents/                   agent builder logic, tier evaluation
+  export.ts                 Ask AI prompt templates
+  offline-queue.ts          IndexedDB queue helpers
+  prompts/                  prompt templates per intent + cron
 
 components/               React components
 public/                   manifest, icons, service worker
@@ -179,7 +175,7 @@ public/                   manifest, icons, service worker
 
 ## Costs
 
-Expected ~$15-25/month in API fees at moderate daily use. Breakdown in `PROJECT_INSTRUCTIONS.md` under “Cost controls.”
+Expected ~$3-6/month in API fees at moderate daily use after the simplifications in `PROJECT_INSTRUCTIONS.md` (raw-data weekly Sonnet with prompt-cached background, batch API, no nightly Sonnet, no in-app open-ended chat, no TTS).
 
 Claude Max subscription does NOT cover the API. The app uses Console API keys, billed separately.
 
@@ -190,19 +186,18 @@ Claude Max subscription does NOT cover the API. The app uses Console API keys, b
 - All data lives in Jon’s Supabase project
 - Audio files auto-delete after 30 days; transcripts kept forever
 - No third-party analytics
-- No data leaves the stack except for: Anthropic (parsing + insights + agents), OpenAI (Whisper), ElevenLabs/OpenAI (TTS)
+- No data leaves the stack except for: Anthropic (parsing, daily digests, weekly reflection, bloodwork expectations), OpenAI (Whisper transcription)
+- Ask AI export bundles data for a user-initiated send to claude.ai or chatgpt.com — entirely opt-in, per tap
 - Each API call is logged in `api_usage` for transparency and cost tracking
 
 -----
 
 ## Status
 
-- [ ] Phase 1 — capture loop
-- [ ] Phase 2 — workout mode
-- [ ] Phase 3 — agents
-- [ ] Phase 4 — insights
-- [ ] Phase 5 — bloodwork
-- [ ] Phase 6 — polish
+- [ ] Phase 1 — capture loop + offline + magic-link auth + dashboard
+- [ ] Phase 2 — insights + interventions + Ask AI export
+- [ ] Phase 3 — workout mode + bloodwork + expectations
+- [ ] Phase 4 — notifications + settings + polish
 
 -----
 
