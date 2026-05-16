@@ -409,20 +409,22 @@ create index api_usage_service_idx       on api_usage (user_id, service, created
 --
 --   insert into supplements (user_id, name, dose, timing, stack_group) values
 --     (me, 'Vitamin D3',                            '2500-3000 IU',     'morning',    'morning_stack'),
---     (me, 'Boswellia',                             null,               'morning',    'morning_stack'),
---     (me, 'Turmeric + pepper',                     null,               'morning',    'morning_stack'),
---     (me, 'Fish oil',                              null,               'morning',    'morning_stack'),
+--     (me, 'Boswellia Casperome',                             250  mg,               'morning',    'morning_stack'),
+--     (me, 'Turmeric + pepper',                     8000 mg,               'morning',    'morning_stack'),
+--     (me, 'Fish oil',                              1300 mg,               'morning',    'morning_stack'),
+--     (me, 'Omega-3 Fatty Acids Eicosapentaenoic Acid',                              450 mg,               'morning',    'morning_stack'),
+--     (me, 'Omega-3 Fatty Acids Eicosapentaenoic Acid',                              300 mg,               'morning',    'morning_stack'),
 --     (me, 'Multivitamin',                          'New Chapter mens', 'morning',    'morning_stack'),
---     (me, 'Ashwagandha + pepper',                  null,               'morning',    'morning_stack'),
+--     (me, 'Ashwagandha + pepper',                  650 mg,               'morning',    'morning_stack'),
 --     (me, 'K2',                                    '120 mcg',          'morning',    'morning_stack'),
---     (me, 'Inositol',                              '500mg',            'morning',    'morning_stack'),
+--     (me, 'Inositol',                              '3g',            'morning',    'morning_stack'),
 --     (me, 'Extra virgin olive oil (cold pressed)', '15 ml',            'morning',    'morning_stack'),
---     (me, 'Protein powder',                        null,               'with_meals', null),
+--     (me, 'Protein powder',                        28g,               'with_meals', null),
 --     (me, 'Collagen peptides',                     '9g',               'night',      'sleep_stack'),
 --     (me, 'Vitamin C',                             '500mg',            'night',      'sleep_stack'),
 --     (me, 'Magnesium bisglycinate',                '400mg',            'night',      'sleep_stack'),
---     (me, 'L-theanine',                            null,               'night',      'sleep_stack'),
---     (me, 'Glycine',                               null,               'night',      'sleep_stack'),
+--     (me, 'L-theanine',                            225 mg,               'night',      'sleep_stack'),
+--     (me, 'Glycine',                               3000 mg,               'night',      'sleep_stack'),
 --     (me, 'Melatonin',                             '1mg',              'night',      'sleep_stack');
 -- end $$;
 
