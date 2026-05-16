@@ -1,120 +1,153 @@
+'use client';
+
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Circle } from 'lucide-react';
-import { requireUser } from '@/lib/auth';
-import { fetchTodayForUser, fetchTodayEntries } from '@/lib/today';
-import { Stat } from '@/components/Stat';
+import { RecordButton } from '@/components/RecordButton';
 import { TranscriptEditor } from '@/components/TranscriptEditor';
+import { enqueueCapture } from '@/lib/offline-queue';
 
-export const dynamic = 'force-dynamic';
+interface ParsedSummary {
+  entry_id: string;
+  intent: string;
+}
 
-export default async function DashboardPage() {
-  const user = await requireUser();
-  const [today, entries] = await Promise.all([
-    fetchTodayForUser(user.id),
-    fetchTodayEntries(user.id),
-  ]);
+function HomeInner() {
+  const params = useSearchParams();
+  const autoLaunch = params.get('mode') === 'auto';
+
+  const [transcript, setTranscript] = useState<string>('');
+  const [entryId, setEntryId] = useState<string | null>(null);
+  const [parsedIntent, setParsedIntent] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [queued, setQueued] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onOnline = () => {
+      import('@/lib/offline-queue').then(({ flushAll }) => flushAll().catch(() => {}));
+    };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, []);
+
+  function reset() {
+    setTranscript('');
+    setEntryId(null);
+    setParsedIntent(null);
+    setError(null);
+    setQueued(false);
+  }
+
+  async function onRecorded(blob: Blob, mimeType: string, _durationMs: number) {
+    reset();
+    const occurredAt = new Date().toISOString();
+
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      const id = crypto.randomUUID();
+      await enqueueCapture({ id, blob, mimeType, occurredAt });
+      setQueued(true);
+      return;
+    }
+
+    try {
+      const form = new FormData();
+      form.append(
+        'audio',
+        new File([blob], `capture.${extFor(mimeType)}`, { type: mimeType }),
+      );
+      const tx = await fetch('/api/transcribe', { method: 'POST', body: form });
+      if (!tx.ok) throw new Error(`transcribe failed: ${tx.status}`);
+      const t = (await tx.json()) as {
+        transcript: string;
+        audio_url: string | null;
+        audio_duration_s: number | null;
+      };
+      setTranscript(t.transcript);
+
+      const px = await fetch('/api/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transcript: t.transcript,
+          audio_url: t.audio_url,
+          audio_duration_s: t.audio_duration_s,
+          occurred_at: occurredAt,
+        }),
+      });
+      if (!px.ok) throw new Error(`parse failed: ${px.status}`);
+      const p = (await px.json()) as ParsedSummary;
+      setEntryId(p.entry_id);
+      setParsedIntent(p.intent);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'failed');
+    }
+  }
 
   return (
-    <main className="min-h-dvh pb-28">
-      <header className="px-4 py-4 flex items-baseline justify-between">
-        <div>
-          <h1 className="text-h2">today</h1>
-          <p className="text-small text-ink-2 font-mono">
-            {formatTodayLabel()} · pst
-          </p>
-        </div>
-        <Link href="/settings" className="text-small text-ink-2 hover:text-ink">
-          settings
+    <main className="min-h-dvh flex flex-col">
+      <header className="p-4 flex justify-end">
+        <Link href="/today" className="text-small text-ink-2 hover:text-ink font-mono">
+          today
         </Link>
       </header>
 
-      <section className="px-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Stat
-          value={`${today.protein_g}g`}
-          label="protein"
-        />
-        <Stat
-          value={`${today.calories_kcal}`}
-          label="calories"
-          meta="±20-30%"
-        />
-        <Stat
-          value={`${today.fiber_g}g`}
-          label="fiber"
-        />
-        <Stat
-          value={`${today.water_oz}oz`}
-          label="water"
-        />
-      </section>
+      <div className="flex-1 flex flex-col items-center justify-center px-4 gap-8 max-w-xl mx-auto w-full">
+        <div className="w-full">
+          <RecordButton autoLaunch={autoLaunch} onRecorded={onRecorded} />
+        </div>
 
-      <section className="px-4 mt-6 grid grid-cols-2 gap-3">
-        <Stat
-          value={today.energy_avg != null ? today.energy_avg.toFixed(1) : '—'}
-          label="energy avg"
-          meta={`${today.entry_count} entries`}
-        />
-        <Stat
-          value={today.mood_avg != null ? today.mood_avg.toFixed(1) : '—'}
-          label="mood avg"
-        />
-      </section>
-
-      <section className="px-4 mt-8">
-        <h2 className="text-h3 mb-3">log</h2>
-        {entries.length === 0 ? (
-          <p className="text-body text-ink-2">no entries today.<br />tap record to add one.</p>
-        ) : (
-          <ul className="space-y-4">
-            {entries.map((e) => (
-              <li key={e.id} className="border-l-2 border-line pl-3">
-                <div className="text-micro font-mono text-ink-3 uppercase tracking-wide flex gap-3">
-                  <span>{formatTime(e.occurred_at)}</span>
-                  <span>{e.intent.replace(/_/g, ' ')}</span>
-                </div>
-                <div className="mt-1">
-                  <TranscriptEditor entryId={e.id} initial={e.transcript} />
-                </div>
-              </li>
-            ))}
-          </ul>
+        {queued && (
+          <p className="text-small text-ink-2 font-mono">
+            offline · queued. will sync when online.
+          </p>
         )}
-      </section>
 
-      <div className="fixed bottom-0 inset-x-0 p-4 bg-bg/95 backdrop-blur border-t border-line">
-        <Link
-          href="/capture"
-          className="w-full h-16 rounded bg-accent text-accent-fg flex items-center justify-center gap-3 font-mono font-medium max-w-xl mx-auto"
-        >
-          <Circle size={18} fill="currentColor" />
-          <span>record</span>
-        </Link>
+        {transcript && entryId && (
+          <div className="w-full space-y-2">
+            <p className="text-micro text-ink-3 uppercase tracking-wide">transcript</p>
+            <TranscriptEditor entryId={entryId} initial={transcript} />
+          </div>
+        )}
+
+        {transcript && !entryId && (
+          <div className="w-full space-y-2">
+            <p className="text-micro text-ink-3 uppercase tracking-wide">transcript</p>
+            <p className="text-body">{transcript}</p>
+          </div>
+        )}
+
+        {parsedIntent && (
+          <div className="w-full">
+            <p className="text-micro text-ink-3 uppercase tracking-wide mb-2">saved</p>
+            <p className="text-small text-ink-2 font-mono">
+              intent · {parsedIntent.replace(/_/g, ' ')}
+            </p>
+            <button
+              onClick={reset}
+              className="mt-4 h-9 px-4 border border-line rounded text-small"
+            >
+              record another
+            </button>
+          </div>
+        )}
+
+        {error && <p className="text-small text-signal-red">{error}</p>}
       </div>
     </main>
   );
 }
 
-function formatTodayLabel() {
-  return new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Los_Angeles',
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  }).format(new Date());
+function extFor(mime: string) {
+  if (mime.includes('mp4')) return 'm4a';
+  if (mime.includes('mpeg')) return 'mp3';
+  return 'webm';
 }
 
-function formatTime(iso: string) {
-  const d = new Date(iso);
-  const fmt = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Los_Angeles',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
-  return fmt
-    .format(d)
-    .toLowerCase()
-    .replace(' am', 'a')
-    .replace(' pm', 'p')
-    .replace(/^0/, '');
+export default function HomePage() {
+  return (
+    <Suspense fallback={null}>
+      <HomeInner />
+    </Suspense>
+  );
 }
