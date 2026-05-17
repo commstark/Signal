@@ -16,7 +16,12 @@ interface Props {
 export function NutritionTile({ value, label, meta, field, unit, rows }: Props) {
   const [open, setOpen] = useState(false);
   const contributions = rows
-    .map((r) => ({ ...r, contrib: r[field] }))
+    .map((r) => ({
+      key: r.key,
+      occurred_at: r.occurred_at,
+      name: r.name,
+      contrib: r[field],
+    }))
     .filter((r) => r.contrib != null && r.contrib > 0);
 
   return (
@@ -42,22 +47,21 @@ export function NutritionTile({ value, label, meta, field, unit, rows }: Props) 
             {contributions.length === 0 ? (
               <p className="text-body text-ink-2">no entries contributed to this stat yet.</p>
             ) : (
-              <ul className="space-y-3">
+              <ul className="space-y-2">
                 {contributions.map((r) => (
-                  <li key={r.entry_id} className="border-l-2 border-line pl-3">
-                    <div className="flex justify-between items-baseline">
-                      <span className="text-micro font-mono text-ink-3 uppercase tracking-wide">
+                  <li
+                    key={r.key}
+                    className="flex items-baseline justify-between gap-3 border-l-2 border-line pl-3"
+                  >
+                    <div className="flex items-baseline gap-2 min-w-0">
+                      <span className="text-small text-ink truncate">{r.name}</span>
+                      <span className="text-micro font-mono text-ink-3 shrink-0">
                         {formatTime(r.occurred_at)}
                       </span>
-                      <span className="text-small font-mono text-ink">
-                        {formatValue(r.contrib as number, field, unit)}
-                      </span>
                     </div>
-                    {r.food_items.length > 0 && (
-                      <p className="text-small text-ink-2 mt-1">
-                        {r.food_items.join(', ')}
-                      </p>
-                    )}
+                    <span className="text-small font-mono text-ink shrink-0">
+                      {formatValue(r.contrib as number, field, unit)}
+                    </span>
                   </li>
                 ))}
               </ul>

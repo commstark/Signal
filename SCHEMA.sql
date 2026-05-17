@@ -126,6 +126,13 @@ create table if not exists food_log_items (
   canonical_tag   text,                                    -- 'beans', 'rice', 'olive_oil', 'fermented' — lowercase, snake_case
   portion         text,                                    -- 'large bowl', '1 cup', '15 ml'
   notes           text,
+  -- Per-item nutrient attribution. LLM splits the entry's nutrients across
+  -- items so the dashboard breakdown can show "pizza slice 400 cal" instead
+  -- of attributing the entry total to one item's name.
+  protein_g       numeric(6,2),
+  calories_kcal   numeric(7,1),
+  fiber_g         numeric(6,2),
+  water_ml        numeric(7,1),
   occurred_at     timestamptz not null,
   created_at      timestamptz not null default now()
 );

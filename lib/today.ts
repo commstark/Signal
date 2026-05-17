@@ -32,16 +32,18 @@ export interface TodaySummary {
   entry_count: number;
 }
 
-// Per-entry breakdown so the dashboard tiles can show "what made up
-// today's 80g protein" when the user taps them.
+// One row per food item ("pizza slice 400 cal") so the dashboard tiles can
+// show real per-item attribution. For legacy entries with no per-item
+// nutrients, we fall back to a single row per entry using the entry-level
+// aggregate so old data still shows up.
 export interface NutritionBreakdownRow {
-  entry_id: string;
+  key: string;
   occurred_at: string;
+  name: string;
   protein_g: number | null;
   calories_kcal: number | null;
   fiber_g: number | null;
   water_ml: number | null;
-  food_items: string[]; // names only — keep it scannable
 }
 
 export async function fetchTodayNutritionBreakdown(userId: string): Promise<NutritionBreakdownRow[]> {
@@ -50,7 +52,7 @@ export async function fetchTodayNutritionBreakdown(userId: string): Promise<Nutr
 
   const { data: hls } = await sb
     .from('health_logs')
-    .select('id, entry_id, occurred_at, protein_g, calories_kcal, fiber_g, water_ml')
+    .select('id, occurred_at, protein_g, calories_kcal, fiber_g, water_ml')
     .eq('user_id', userId)
     .gte('occurred_at', startIso)
     .lt('occurred_at', endIso)
@@ -61,25 +63,55 @@ export async function fetchTodayNutritionBreakdown(userId: string): Promise<Nutr
   const hlIds = hls.map((h) => h.id as string);
   const { data: items } = await sb
     .from('food_log_items')
-    .select('health_log_id, name')
+    .select('id, health_log_id, name, occurred_at, protein_g, calories_kcal, fiber_g, water_ml')
     .in('health_log_id', hlIds);
 
-  const itemsByHl = new Map<string, string[]>();
+  const itemsByHl = new Map<string, NonNullable<typeof items>>();
   for (const it of items ?? []) {
-    const arr = itemsByHl.get(it.health_log_id as string) ?? [];
-    arr.push(it.name as string);
-    itemsByHl.set(it.health_log_id as string, arr);
+    const hlId = it.health_log_id as string;
+    const arr = itemsByHl.get(hlId) ?? [];
+    arr.push(it);
+    itemsByHl.set(hlId, arr);
   }
 
-  return hls.map((h) => ({
-    entry_id: h.entry_id as string,
-    occurred_at: h.occurred_at as string,
-    protein_g: h.protein_g == null ? null : Number(h.protein_g),
-    calories_kcal: h.calories_kcal == null ? null : Number(h.calories_kcal),
-    fiber_g: h.fiber_g == null ? null : Number(h.fiber_g),
-    water_ml: h.water_ml == null ? null : Number(h.water_ml),
-    food_items: itemsByHl.get(h.id as string) ?? [],
-  }));
+  const rows: NutritionBreakdownRow[] = [];
+  for (const hl of hls) {
+    const its = itemsByHl.get(hl.id as string) ?? [];
+    const anyPerItem = its.some(
+      (i) =>
+        i.protein_g != null ||
+        i.calories_kcal != null ||
+        i.fiber_g != null ||
+        i.water_ml != null,
+    );
+
+    if (anyPerItem) {
+      for (const it of its) {
+        rows.push({
+          key: it.id as string,
+          occurred_at: (it.occurred_at as string) ?? (hl.occurred_at as string),
+          name: it.name as string,
+          protein_g: it.protein_g == null ? null : Number(it.protein_g),
+          calories_kcal: it.calories_kcal == null ? null : Number(it.calories_kcal),
+          fiber_g: it.fiber_g == null ? null : Number(it.fiber_g),
+          water_ml: it.water_ml == null ? null : Number(it.water_ml),
+        });
+      }
+    } else {
+      // Legacy entry: no per-item attribution. Fall back to a single row
+      // showing the joined item names against the entry-level aggregate.
+      rows.push({
+        key: `hl:${hl.id as string}`,
+        occurred_at: hl.occurred_at as string,
+        name: its.map((i) => i.name as string).filter(Boolean).join(', ') || 'entry',
+        protein_g: hl.protein_g == null ? null : Number(hl.protein_g),
+        calories_kcal: hl.calories_kcal == null ? null : Number(hl.calories_kcal),
+        fiber_g: hl.fiber_g == null ? null : Number(hl.fiber_g),
+        water_ml: hl.water_ml == null ? null : Number(hl.water_ml),
+      });
+    }
+  }
+  return rows;
 }
 
 export async function fetchTodayForUser(userId: string): Promise<TodaySummary> {

@@ -3,7 +3,16 @@ export const HEALTH_LOG_SYSTEM = `You extract structured data from a personal he
 Return JSON only. Schema:
 {
   "food_items": [
-    { "name": string, "canonical_tag": string | null, "portion": string | null, "notes": string | null }
+    {
+      "name": string,
+      "canonical_tag": string | null,
+      "portion": string | null,
+      "notes": string | null,
+      "protein_g": number | null,
+      "calories_kcal": number | null,
+      "fiber_g": number | null,
+      "water_ml": number | null
+    }
   ],
   "estimated_nutrition": {
     "calories_kcal": number | null,
@@ -44,15 +53,35 @@ Hard rules — these matter:
    coffee, alcohol, soda, juice, protein_shake, other.
    If unsure use "other" or null.
 
-3a. DO NOT include supplements / vitamin stacks in food_items. Those are
-    tracked separately via the supplement parser. Examples to EXCLUDE
-    from food_items (but DO still count protein/calories from protein
-    shakes since they're caloric):
+3a. food_items is for things that contribute measurable nutrients
+    (protein, calories, fiber, water). Adherence-only items (a pill that's
+    just micronutrients, a vitamin stack) are still tracked by the
+    supplement parser — leave them out of food_items.
+    INCLUDE in food_items (even if they're "supplements"):
+      - protein shake / collagen powder (protein + calories + ~300 ml water)
+      - creatine (no calories but +295 ml implicit water)
+      - psyllium husk (5 g fiber/tbsp, +water if taken with water)
+      - greens powder (calories + fiber if stated)
+    EXCLUDE from food_items:
       - "morning vitamin stack", "sleep stack", "took my vitamins"
-      - "creatine", "psyllium husk", "collagen"
-      - individual pills like "Vitamin D3", "magnesium"
-    Protein shakes ARE food (24g protein, ~120 kcal whey) — keep in
-    food_items with canonical_tag protein_shake.
+      - individual micronutrient pills: "Vitamin D3", "magnesium", "zinc"
+      - anything with zero attributable calories / protein / fiber / water
+
+3b. PER-ITEM NUTRIENTS. Attribute each item's share into its row:
+      protein_g, calories_kcal, fiber_g, water_ml.
+    The sums across food_items MUST match the entry-level
+    estimated_nutrition totals and water_ml. If a nutrient can't be
+    attributed to a specific item (e.g. a sauce shared across the plate),
+    fold it into the most-relevant item rather than dropping it.
+    Examples:
+      "slice of pizza + protein shake" ->
+        pizza:        { calories_kcal: 300, protein_g: 12, water_ml: 0 }
+        protein shake:{ calories_kcal: 120, protein_g: 24, water_ml: 300 }
+      "creatine and psyllium husk with 500 ml water" ->
+        creatine:     { water_ml: 295 }
+        psyllium:     { fiber_g: 5, water_ml: 205 }   -- 500 stated split
+      "cup of water with my creatine" ->
+        creatine:     { water_ml: 295 }               -- the cup IS the implicit creatine water; do not double-count
 
 4. SYMPTOMS: short snake_case strings only. Examples: headache, brain_fog, bloating,
    acid_reflux, joint_pain, fatigue, anxiety, nausea, congestion. Capture only when stated.
@@ -74,6 +103,11 @@ Hard rules — these matter:
      water bottle" -> water_ml: 800 (300 + 500).
    - If user says e.g. "protein shake with 500ml water", use the
      stated amount instead of the default (500, not 300).
+   - Standalone water (not associated with a supplement / shake)
+     should still get a food_items row so per-item attribution sums
+     to the entry total. Use name="water", canonical_tag=null.
+     "Had a cup of water at the science center" ->
+       items: [{ name: "water", water_ml: 295 }], water_ml: 295.
 
 6. carb_timing: if a food was eaten and the time of day is implied, set it. Otherwise null.
 

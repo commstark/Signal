@@ -6,6 +6,12 @@ export interface HealthLogParsed {
     canonical_tag: string | null;
     portion: string | null;
     notes: string | null;
+    // Per-item nutrient attribution. Sum across items should match the
+    // entry's estimated_nutrition / water_ml totals.
+    protein_g: number | null;
+    calories_kcal: number | null;
+    fiber_g: number | null;
+    water_ml: number | null;
   }>;
   estimated_nutrition: {
     calories_kcal: number | null;
