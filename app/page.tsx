@@ -126,12 +126,6 @@ function HomeInner() {
             <p className="text-small text-ink-2 font-mono">
               intent · {parsedIntent.replace(/_/g, ' ')}
             </p>
-            <button
-              onClick={reset}
-              className="mt-4 h-9 px-4 border border-line rounded text-small"
-            >
-              record another
-            </button>
           </div>
         )}
 
