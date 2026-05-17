@@ -74,7 +74,8 @@ export async function parseWorkoutLog(transcript: string, occurredAtIso: string)
   return callHaiku({
     system: WORKOUT_LOG_SYSTEM,
     user: workoutLogUserPrompt(transcript, occurredAtIso),
-    maxTokens: 1024,
+    // Long sessions with many exercises/sets blow past 1k tokens of JSON.
+    maxTokens: 4096,
   });
 }
 
