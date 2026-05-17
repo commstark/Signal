@@ -6,20 +6,23 @@ import {
   fetchTodayEntries,
   fetchTodayWorkouts,
   fetchTodaySupplements,
+  fetchTodayNutritionBreakdown,
   type TodaySupplementItem,
 } from '@/lib/today';
 import { Stat } from '@/components/Stat';
+import { NutritionTile } from '@/components/NutritionTile';
 import { TranscriptEditor } from '@/components/TranscriptEditor';
 
 export const dynamic = 'force-dynamic';
 
 export default async function TodayPage() {
   const user = await requireUser();
-  const [today, entries, workouts, supplements] = await Promise.all([
+  const [today, entries, workouts, supplements, breakdown] = await Promise.all([
     fetchTodayForUser(user.id),
     fetchTodayEntries(user.id),
     fetchTodayWorkouts(user.id),
     fetchTodaySupplements(user.id),
+    fetchTodayNutritionBreakdown(user.id),
   ]);
 
   return (
@@ -42,10 +45,36 @@ export default async function TodayPage() {
       </header>
 
       <section className="px-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Stat value={`${today.protein_g}g`} label="protein" />
-        <Stat value={`${today.calories_kcal}`} label="calories" meta="±20-30%" />
-        <Stat value={`${today.fiber_g}g`} label="fiber" />
-        <Stat value={`${today.water_oz}oz`} label="water" />
+        <NutritionTile
+          value={`${today.protein_g}g`}
+          label="protein"
+          field="protein_g"
+          unit="g"
+          rows={breakdown}
+        />
+        <NutritionTile
+          value={`${today.calories_kcal}`}
+          label="calories"
+          meta="±20-30%"
+          field="calories_kcal"
+          unit=" kcal"
+          rows={breakdown}
+        />
+        <NutritionTile
+          value={`${today.fiber_g}g`}
+          label="fiber"
+          field="fiber_g"
+          unit="g"
+          rows={breakdown}
+        />
+        <NutritionTile
+          value={`${today.water_l}L`}
+          label="water"
+          field="water_oz"
+          unit="L"
+          rows={breakdown}
+          formatContribution={(ozValue) => `${Math.round(ozValue * 0.0295735 * 100) / 100}L`}
+        />
       </section>
 
       <section className="px-4 mt-6 grid grid-cols-2 gap-3">
@@ -83,12 +112,20 @@ export default async function TodayPage() {
                     {ex.muscle_group && <span>{ex.muscle_group}</span>}
                     {ex.exercise_type && <span>· {ex.exercise_type}</span>}
                     <span>· {ex.set_count} set{ex.set_count === 1 ? '' : 's'}</span>
-                    {ex.total_volume_lb != null && ex.total_volume_lb > 0 && (
-                      <span>· {ex.total_volume_lb} lb total</span>
+                    {ex.top_set?.weight_lb != null && (
+                      <span>
+                        · top {ex.top_set.weight_lb} lb
+                        {ex.top_set.reps != null && ` × ${ex.top_set.reps}`}
+                      </span>
                     )}
-                    {ex.total_duration_s != null && ex.total_duration_s > 0 && (
-                      <span>· {formatDuration(ex.total_duration_s)}</span>
+                    {ex.set_durations_s && (
+                      <span>· {ex.set_durations_s.map(formatDuration).join(' / ')}</span>
                     )}
+                    {!ex.set_durations_s &&
+                      ex.total_duration_s != null &&
+                      ex.total_duration_s > 0 && (
+                        <span>· {formatDuration(ex.total_duration_s)}</span>
+                      )}
                   </div>
                 </li>
               ))}

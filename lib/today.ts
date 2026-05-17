@@ -26,10 +26,63 @@ export interface TodaySummary {
   calories_kcal: number;
   fiber_g: number;
   water_oz: number;
+  water_l: number;
   energy_avg: number | null;
   mood_avg: number | null;
   entry_count: number;
 }
+
+// Per-entry breakdown so the dashboard tiles can show "what made up
+// today's 80g protein" when the user taps them.
+export interface NutritionBreakdownRow {
+  entry_id: string;
+  occurred_at: string;
+  protein_g: number | null;
+  calories_kcal: number | null;
+  fiber_g: number | null;
+  water_oz: number | null;
+  food_items: string[]; // names only — keep it scannable
+}
+
+export async function fetchTodayNutritionBreakdown(userId: string): Promise<NutritionBreakdownRow[]> {
+  const sb = createSupabaseAdmin();
+  const { startIso, endIso } = dayBoundsPst();
+
+  const { data: hls } = await sb
+    .from('health_logs')
+    .select('id, entry_id, occurred_at, protein_g, calories_kcal, fiber_g, water_oz')
+    .eq('user_id', userId)
+    .gte('occurred_at', startIso)
+    .lt('occurred_at', endIso)
+    .order('occurred_at', { ascending: true });
+
+  if (!hls?.length) return [];
+
+  const hlIds = hls.map((h) => h.id as string);
+  const { data: items } = await sb
+    .from('food_log_items')
+    .select('health_log_id, name')
+    .in('health_log_id', hlIds);
+
+  const itemsByHl = new Map<string, string[]>();
+  for (const it of items ?? []) {
+    const arr = itemsByHl.get(it.health_log_id as string) ?? [];
+    arr.push(it.name as string);
+    itemsByHl.set(it.health_log_id as string, arr);
+  }
+
+  return hls.map((h) => ({
+    entry_id: h.entry_id as string,
+    occurred_at: h.occurred_at as string,
+    protein_g: h.protein_g == null ? null : Number(h.protein_g),
+    calories_kcal: h.calories_kcal == null ? null : Number(h.calories_kcal),
+    fiber_g: h.fiber_g == null ? null : Number(h.fiber_g),
+    water_oz: h.water_oz == null ? null : Number(h.water_oz),
+    food_items: itemsByHl.get(h.id as string) ?? [],
+  }));
+}
+
+const OZ_TO_LITER = 0.0295735;
 
 export async function fetchTodayForUser(userId: string): Promise<TodaySummary> {
   const sb = createSupabaseAdmin();
@@ -69,6 +122,7 @@ export async function fetchTodayForUser(userId: string): Promise<TodaySummary> {
     calories_kcal: Math.round(calories),
     fiber_g: round(fiber),
     water_oz: round(water),
+    water_l: round(water * OZ_TO_LITER),
     energy_avg: energies.length ? round(avg(energies)) : null,
     mood_avg: moods.length ? round(avg(moods)) : null,
     entry_count: count ?? 0,
@@ -103,8 +157,12 @@ export interface TodayWorkoutExercise {
   exercise_type: string | null;
   occurred_at: string;
   set_count: number;
-  total_volume_lb: number | null; // sum(weight_lb * reps) for strength sets
-  total_duration_s: number | null; // sum(duration_s) for isometric/cardio
+  // For strength: the heaviest set (max weight, then reps as tiebreaker).
+  top_set: { weight_lb: number | null; reps: number | null } | null;
+  // For cardio: total duration across sets.
+  total_duration_s: number | null;
+  // For isometric: hold durations per set (e.g. dead hang 45s/30s/25s).
+  set_durations_s: number[] | null;
 }
 
 export interface TodayWorkouts {
@@ -164,28 +222,35 @@ export async function fetchTodayWorkouts(userId: string): Promise<TodayWorkouts>
 
   const exercises: TodayWorkoutExercise[] = exs.map((e) => {
     const exSets = setsByEx.get(e.id as string) ?? [];
-    let vol = 0;
-    let dur = 0;
-    let volSeen = false;
-    let durSeen = false;
+    const exType = (e.exercise_type as string | null) ?? null;
+
+    // Top set: highest weight, tiebreak by reps.
+    let top: { weight_lb: number | null; reps: number | null } | null = null;
     for (const s of exSets) {
-      if (s.weight_lb != null && s.reps != null) {
-        vol += Number(s.weight_lb) * s.reps;
-        volSeen = true;
-      }
-      if (s.duration_s != null) {
-        dur += Number(s.duration_s);
-        durSeen = true;
+      if (s.weight_lb == null) continue;
+      if (!top || Number(s.weight_lb) > Number(top.weight_lb ?? 0) ||
+          (Number(s.weight_lb) === Number(top.weight_lb ?? 0) && (s.reps ?? 0) > (top.reps ?? 0))) {
+        top = { weight_lb: Number(s.weight_lb), reps: s.reps ?? null };
       }
     }
+
+    // Duration aggregates.
+    const dursAll = exSets
+      .map((s) => (s.duration_s == null ? null : Number(s.duration_s)))
+      .filter((d): d is number => d != null && d > 0);
+    const totalDur = dursAll.length ? dursAll.reduce((a, b) => a + b, 0) : null;
+    // Isometric: keep per-set durations so the dashboard can show "45s / 30s / 25s".
+    const setDurations = exType === 'isometric' && dursAll.length ? dursAll : null;
+
     return {
       exercise_name: e.exercise_name as string,
       muscle_group: (e.muscle_group as string | null) ?? null,
-      exercise_type: (e.exercise_type as string | null) ?? null,
+      exercise_type: exType,
       occurred_at: e.occurred_at as string,
       set_count: exSets.length,
-      total_volume_lb: volSeen ? Math.round(vol) : null,
-      total_duration_s: durSeen ? Math.round(dur) : null,
+      top_set: top,
+      total_duration_s: totalDur != null ? Math.round(totalDur) : null,
+      set_durations_s: setDurations,
     };
   });
 

@@ -47,7 +47,24 @@ Hard rules — these matter:
 4. SYMPTOMS: short snake_case strings only. Examples: headache, brain_fog, bloating,
    acid_reflux, joint_pain, fatigue, anxiety, nausea, congestion. Capture only when stated.
 
-5. WATER: only oz numbers if stated. "drank some water" -> null.
+5. WATER: convert to fluid ounces (oz) for storage.
+   - User is Canadian and thinks in metric and cups. Conversions:
+     1 cup (user's mug) = 295 ml = ~10 oz.
+     1 liter = ~33.8 oz.
+     1 ml = ~0.034 oz.
+   - "drank a cup of water" -> water_oz: 10.
+   - "drank 2 cups" -> 20. "500 ml bottle" -> 17.
+   - "drank some water" with no quantity -> null.
+   - IMPLICIT WATER from known habits — add these whenever the
+     transcript mentions the trigger, even if water isn't stated:
+       protein shake          -> +300 ml = +10 oz
+       creatine               -> +295 ml = +10 oz  (1 user cup)
+       glycine                -> +295 ml = +10 oz  (1 user cup)
+       "water bottle"         -> +500 ml = +17 oz  (default size unless stated)
+   - Sum implicit and explicit water. "Had a protein shake and a
+     water bottle" -> water_oz: 27 (10 implicit + 17 bottle).
+   - If user says e.g. "protein shake with 500ml water", use the
+     stated amount instead of the default.
 
 6. carb_timing: if a food was eaten and the time of day is implied, set it. Otherwise null.
 
