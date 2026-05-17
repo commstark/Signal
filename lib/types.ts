@@ -17,7 +17,7 @@ export interface HealthLogParsed {
     ultra_processed: boolean | null;
     confidence: 'high' | 'medium' | 'low';
   };
-  water_oz: number | null;
+  water_ml: number | null;
   mood: { score: number | null; descriptor: string | null };
   fullness: 'hungry' | 'satisfied' | 'full' | 'stuffed' | null;
   energy: { score: number | null; descriptor: string | null };

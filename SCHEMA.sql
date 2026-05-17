@@ -103,7 +103,10 @@ create table if not exists health_logs (
   -- symptoms
   symptoms            text[],                              -- ['headache', 'brain_fog', ...]
 
-  -- catch-all
+  -- hydration (ml; user is metric)
+  water_ml            numeric(7,1),
+  -- legacy oz column kept for backwards compatibility on existing rows.
+  -- All new writes go to water_ml.
   water_oz            numeric(5,1),
   free_text_notes     text,
 
