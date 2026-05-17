@@ -25,11 +25,11 @@ export function RecordButton({ autoLaunch = false, onRecorded, onTranscribingCha
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (autoLaunch) {
+    if (state === 'launching') {
       const t = setTimeout(() => setState('idle'), 1500);
       return () => clearTimeout(t);
     }
-  }, [autoLaunch]);
+  }, [state]);
 
   useEffect(() => {
     if (state !== 'recording') return;
@@ -140,7 +140,7 @@ export function RecordButton({ autoLaunch = false, onRecorded, onTranscribingCha
         isLaunching && 'bg-[#EAB308] text-black animate-launch-pulse',
         isRecording && 'bg-signal-red text-white animate-record-pulse',
         isTranscribing && 'bg-line text-ink-2 cursor-wait',
-        !isLaunching && !isRecording && !isTranscribing && 'bg-accent text-accent-fg',
+        !isLaunching && !isRecording && !isTranscribing && 'bg-[#EAB308] text-black',
       ]
         .filter(Boolean)
         .join(' ')}
