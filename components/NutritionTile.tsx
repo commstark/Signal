@@ -11,13 +11,9 @@ interface Props {
   field: 'protein_g' | 'calories_kcal' | 'fiber_g' | 'water_ml';
   unit: string; // 'g', 'kcal', etc.
   rows: NutritionBreakdownRow[];
-  // Optional override that converts the raw stored value (e.g. water_oz) to
-  // whatever the dashboard is displaying (e.g. liters). When omitted the
-  // raw value is shown.
-  formatContribution?: (v: number) => string;
 }
 
-export function NutritionTile({ value, label, meta, field, unit, rows, formatContribution }: Props) {
+export function NutritionTile({ value, label, meta, field, unit, rows }: Props) {
   const [open, setOpen] = useState(false);
   const contributions = rows
     .map((r) => ({ ...r, contrib: r[field] }))
@@ -54,7 +50,7 @@ export function NutritionTile({ value, label, meta, field, unit, rows, formatCon
                         {formatTime(r.occurred_at)}
                       </span>
                       <span className="text-small font-mono text-ink">
-                        {formatContribution ? formatContribution(r.contrib as number) : `${roundShort(r.contrib as number)}${unit}`}
+                        {formatValue(r.contrib as number, field, unit)}
                       </span>
                     </div>
                     {r.food_items.length > 0 && (
@@ -97,4 +93,11 @@ function formatTime(iso: string) {
 
 function roundShort(n: number) {
   return Math.round(n * 10) / 10;
+}
+
+function formatValue(v: number, field: Props['field'], unit: string) {
+  if (field === 'water_ml') {
+    return v >= 1000 ? `${Math.round((v / 1000) * 100) / 100}L` : `${Math.round(v)}ml`;
+  }
+  return `${roundShort(v)}${unit}`;
 }
