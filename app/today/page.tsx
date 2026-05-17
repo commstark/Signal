@@ -59,14 +59,41 @@ export default async function TodayPage() {
         ) : (
           <ul className="space-y-4">
             {entries.map((e) => (
-              <li key={e.id} className="border-l-2 border-line pl-3">
-                <div className="text-micro font-mono text-ink-3 uppercase tracking-wide flex gap-3">
+              <li
+                key={e.id}
+                className={`border-l-2 pl-3 ${
+                  e.parse_status === 'failed'
+                    ? 'border-signal-red'
+                    : e.parse_status === 'partial'
+                    ? 'border-yellow-500'
+                    : 'border-line'
+                }`}
+              >
+                <div className="text-micro font-mono text-ink-3 uppercase tracking-wide flex gap-3 items-center">
                   <span>{formatTime(e.occurred_at)}</span>
                   <span>{e.intent.replace(/_/g, ' ')}</span>
+                  {e.parse_status === 'partial' && (
+                    <span className="text-yellow-500">partial</span>
+                  )}
+                  {e.parse_status === 'failed' && (
+                    <span className="text-signal-red">failed</span>
+                  )}
                 </div>
                 <div className="mt-1">
                   <TranscriptEditor entryId={e.id} initial={e.transcript} />
                 </div>
+                {e.parse_warnings && e.parse_warnings.length > 0 && (
+                  <ul className="mt-2 space-y-1">
+                    {e.parse_warnings.map((w, i) => (
+                      <li
+                        key={i}
+                        className="text-micro font-mono text-ink-3"
+                      >
+                        · {w}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </li>
             ))}
           </ul>

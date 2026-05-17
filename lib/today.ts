@@ -80,6 +80,8 @@ export interface TodayEntry {
   occurred_at: string;
   intent: string;
   transcript: string;
+  parse_status: 'ok' | 'partial' | 'failed' | 'pending' | null;
+  parse_warnings: string[] | null;
 }
 
 export async function fetchTodayEntries(userId: string): Promise<TodayEntry[]> {
@@ -87,7 +89,7 @@ export async function fetchTodayEntries(userId: string): Promise<TodayEntry[]> {
   const { startIso, endIso } = dayBoundsPst();
   const { data } = await sb
     .from('entries')
-    .select('id, occurred_at, intent, transcript')
+    .select('id, occurred_at, intent, transcript, parse_status, parse_warnings')
     .eq('user_id', userId)
     .gte('occurred_at', startIso)
     .lt('occurred_at', endIso)

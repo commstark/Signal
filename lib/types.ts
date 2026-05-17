@@ -26,23 +26,38 @@ export interface HealthLogParsed {
   free_text_notes: string | null;
 }
 
+export type MuscleGroup =
+  | 'chest'
+  | 'back'
+  | 'legs'
+  | 'shoulders'
+  | 'arms'
+  | 'core'
+  | 'full_body';
+
+export type ExerciseType =
+  | 'strength'
+  | 'cardio'
+  | 'conditioning'
+  | 'mobility'
+  | 'isometric';
+
 export interface WorkoutLogParsed {
   session_notes: string | null;
+  duration_min?: number | null;
+  focus?: string | null;
+  incident?: 'pain' | 'pulled' | 'cut_short' | 'fatigue_high' | null;
   exercises: Array<{
     exercise_name: string;
-    muscle_group:
-      | 'chest'
-      | 'back'
-      | 'legs'
-      | 'shoulders'
-      | 'arms'
-      | 'core'
-      | 'full_body'
-      | null;
+    muscle_group: MuscleGroup | null;
+    exercise_type?: ExerciseType | null;
     sets: Array<{
       weight_lb: number | null;
       reps: number | null;
       rpe: number | null;
+      duration_s?: number | null;
+      distance_m?: number | null;
+      count?: number | null;
       notes: string | null;
     }>;
   }>;
