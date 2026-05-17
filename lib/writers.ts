@@ -190,7 +190,8 @@ export async function writeWorkoutLog(args: {
   }
 
   if (!args.parsed.exercises?.length) {
-    warnings.push('no exercises in parsed output');
+    // Empty is fine — common for 'mixed' intent entries that mention
+    // food/supplements but no exercise. Don't pollute parse_warnings.
     return { ok: true, warnings };
   }
 
