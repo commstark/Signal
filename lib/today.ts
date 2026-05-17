@@ -25,7 +25,7 @@ export interface TodaySummary {
   protein_g: number;
   calories_kcal: number;
   fiber_g: number;
-  water_oz: number;
+  water_ml: number;
   water_l: number;
   energy_avg: number | null;
   mood_avg: number | null;
@@ -40,7 +40,7 @@ export interface NutritionBreakdownRow {
   protein_g: number | null;
   calories_kcal: number | null;
   fiber_g: number | null;
-  water_oz: number | null;
+  water_ml: number | null;
   food_items: string[]; // names only — keep it scannable
 }
 
@@ -50,7 +50,7 @@ export async function fetchTodayNutritionBreakdown(userId: string): Promise<Nutr
 
   const { data: hls } = await sb
     .from('health_logs')
-    .select('id, entry_id, occurred_at, protein_g, calories_kcal, fiber_g, water_oz')
+    .select('id, entry_id, occurred_at, protein_g, calories_kcal, fiber_g, water_ml')
     .eq('user_id', userId)
     .gte('occurred_at', startIso)
     .lt('occurred_at', endIso)
@@ -77,12 +77,10 @@ export async function fetchTodayNutritionBreakdown(userId: string): Promise<Nutr
     protein_g: h.protein_g == null ? null : Number(h.protein_g),
     calories_kcal: h.calories_kcal == null ? null : Number(h.calories_kcal),
     fiber_g: h.fiber_g == null ? null : Number(h.fiber_g),
-    water_oz: h.water_oz == null ? null : Number(h.water_oz),
+    water_ml: h.water_ml == null ? null : Number(h.water_ml),
     food_items: itemsByHl.get(h.id as string) ?? [],
   }));
 }
-
-const OZ_TO_LITER = 0.0295735;
 
 export async function fetchTodayForUser(userId: string): Promise<TodaySummary> {
   const sb = createSupabaseAdmin();
@@ -90,7 +88,7 @@ export async function fetchTodayForUser(userId: string): Promise<TodaySummary> {
 
   const { data: hl } = await sb
     .from('health_logs')
-    .select('protein_g, calories_kcal, fiber_g, water_oz, energy_score, mood_score')
+    .select('protein_g, calories_kcal, fiber_g, water_ml, energy_score, mood_score')
     .eq('user_id', userId)
     .gte('occurred_at', startIso)
     .lt('occurred_at', endIso);
@@ -105,14 +103,14 @@ export async function fetchTodayForUser(userId: string): Promise<TodaySummary> {
   let protein = 0;
   let calories = 0;
   let fiber = 0;
-  let water = 0;
+  let waterMl = 0;
   const energies: number[] = [];
   const moods: number[] = [];
   for (const r of hl ?? []) {
     protein += Number(r.protein_g ?? 0);
     calories += Number(r.calories_kcal ?? 0);
     fiber += Number(r.fiber_g ?? 0);
-    water += Number(r.water_oz ?? 0);
+    waterMl += Number(r.water_ml ?? 0);
     if (typeof r.energy_score === 'number') energies.push(r.energy_score);
     if (typeof r.mood_score === 'number') moods.push(r.mood_score);
   }
@@ -121,8 +119,8 @@ export async function fetchTodayForUser(userId: string): Promise<TodaySummary> {
     protein_g: round(protein),
     calories_kcal: Math.round(calories),
     fiber_g: round(fiber),
-    water_oz: round(water),
-    water_l: round(water * OZ_TO_LITER),
+    water_ml: Math.round(waterMl),
+    water_l: round(waterMl / 1000),
     energy_avg: energies.length ? round(avg(energies)) : null,
     mood_avg: moods.length ? round(avg(moods)) : null,
     entry_count: count ?? 0,

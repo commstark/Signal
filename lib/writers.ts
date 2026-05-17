@@ -113,7 +113,7 @@ export async function writeHealthLog(args: {
       concentration_score: clampScore(args.parsed.concentration?.score),
       fullness: asEnum(args.parsed.fullness, FULLNESS),
       symptoms: asArray(args.parsed.symptoms),
-      water_oz: clampNumeric(args.parsed.water_oz, 999),
+      water_ml: clampNumeric(args.parsed.water_ml, 30000),
       free_text_notes: args.parsed.free_text_notes ?? null,
     })
     .select('id')

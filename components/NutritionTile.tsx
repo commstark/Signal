@@ -8,7 +8,7 @@ interface Props {
   value: string;
   label: string;
   meta?: string;
-  field: 'protein_g' | 'calories_kcal' | 'fiber_g' | 'water_oz';
+  field: 'protein_g' | 'calories_kcal' | 'fiber_g' | 'water_ml';
   unit: string; // 'g', 'kcal', etc.
   rows: NutritionBreakdownRow[];
   // Optional override that converts the raw stored value (e.g. water_oz) to

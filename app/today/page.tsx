@@ -70,10 +70,14 @@ export default async function TodayPage() {
         <NutritionTile
           value={`${today.water_l}L`}
           label="water"
-          field="water_oz"
-          unit="L"
+          field="water_ml"
+          unit="ml"
           rows={breakdown}
-          formatContribution={(ozValue) => `${Math.round(ozValue * 0.0295735 * 100) / 100}L`}
+          formatContribution={(mlValue) =>
+            mlValue >= 1000
+              ? `${Math.round((mlValue / 1000) * 100) / 100}L`
+              : `${Math.round(mlValue)}ml`
+          }
         />
       </section>
 
