@@ -203,7 +203,7 @@ export async function POST(req: NextRequest) {
     }
   } catch (err) {
     console.error('parse error', err);
-    const msg = err instanceof Error ? err.message : 'parse failed';
+    const msg = errorMessage(err);
     return NextResponse.json(
       { error: msg, entry_id: entryId, intent },
       { status: 500 },
@@ -218,6 +218,24 @@ export async function POST(req: NextRequest) {
     .eq('id', entryId);
 
   return NextResponse.json({ entry_id: entryId, intent });
+}
+
+// PostgrestError and similar SDK errors aren't Error instances but
+// carry a useful .message (and often .code / .details / .hint).
+// Extract them rather than falling back to a generic string.
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (err && typeof err === 'object') {
+    const e = err as Record<string, unknown>;
+    const parts = [
+      typeof e.message === 'string' ? e.message : null,
+      typeof e.details === 'string' ? e.details : null,
+      typeof e.hint === 'string' ? `hint: ${e.hint}` : null,
+      typeof e.code === 'string' ? `[${e.code}]` : null,
+    ].filter(Boolean);
+    if (parts.length) return parts.join(' · ');
+  }
+  return 'parse failed';
 }
 
 async function clearStructuredForEntry(

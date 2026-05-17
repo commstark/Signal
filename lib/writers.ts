@@ -30,6 +30,30 @@ function asArray(v: unknown): string[] {
 const CARB_TIMINGS = ['morning', 'midday', 'evening', 'late_night'] as const;
 const FULLNESS = ['hungry', 'satisfied', 'full', 'stuffed'] as const;
 const CONFIDENCE = ['high', 'medium', 'low'] as const;
+const MUSCLE_GROUPS = [
+  'chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'full_body',
+] as const;
+
+function asMuscleGroup(v: unknown): (typeof MUSCLE_GROUPS)[number] | null {
+  return asEnum(v, MUSCLE_GROUPS);
+}
+
+function clampNumeric(v: unknown, max: number): number | null {
+  if (v == null) return null;
+  const n = typeof v === 'string' ? Number(v) : v;
+  if (typeof n !== 'number' || !Number.isFinite(n)) return null;
+  if (n < 0 || n > max) return null;
+  return n;
+}
+
+function clampInt(v: unknown, min: number, max: number): number | null {
+  if (v == null) return null;
+  const n = typeof v === 'string' ? Number(v) : v;
+  if (typeof n !== 'number' || !Number.isFinite(n)) return null;
+  const int = Math.round(n);
+  if (int < min || int > max) return null;
+  return int;
+}
 
 async function findActiveInterventionId(
   sb: Admin,
@@ -96,7 +120,7 @@ export async function writeHealthLog(args: {
       occurred_at: args.occurredAt,
     }));
     const { error: e } = await sb.from('food_log_items').insert(items);
-    if (e) throw e;
+    if (e) throw new Error(`food_log_items insert: ${e.message}`);
   }
 
   return hl.id as string;
@@ -141,7 +165,7 @@ export async function writeWorkoutLog(args: {
       })
       .select('id')
       .single();
-    if (error) throw error;
+    if (error) throw new Error(`workout_sessions insert: ${error.message}`);
     sessionId = created.id;
   }
 
@@ -154,24 +178,24 @@ export async function writeWorkoutLog(args: {
         user_id: args.userId,
         intervention_id: interventionId,
         exercise_name: ex.exercise_name,
-        muscle_group: ex.muscle_group,
+        muscle_group: asMuscleGroup(ex.muscle_group),
         occurred_at: args.occurredAt,
       })
       .select('id')
       .single();
-    if (error) throw error;
+    if (error) throw new Error(`workout_exercises insert: ${error.message}`);
 
     if (ex.sets?.length) {
       const sets = ex.sets.map((s, i) => ({
         exercise_id: created.id,
         set_number: i + 1,
-        weight_lb: s.weight_lb,
-        reps: s.reps,
-        rpe: s.rpe,
+        weight_lb: clampNumeric(s.weight_lb, 9999),
+        reps: clampInt(s.reps, 0, 1000),
+        rpe: clampNumeric(s.rpe, 10),
         notes: s.notes,
       }));
       const { error: e2 } = await sb.from('workout_sets').insert(sets);
-      if (e2) throw e2;
+      if (e2) throw new Error(`workout_sets insert: ${e2.message}`);
     }
   }
 
@@ -199,7 +223,7 @@ export async function writeSupplementLog(args: {
       notes: l.notes,
     }));
     const { error } = await sb.from('supplement_logs').insert(rows);
-    if (error) throw error;
+    if (error) throw new Error(`supplement_logs insert: ${error.message}`);
   }
 
   // Candidate intervention surfaces in the dashboard for confirmation.
@@ -247,6 +271,6 @@ export async function writeIntervention(args: {
     })
     .select('id')
     .single();
-  if (error) throw error;
+  if (error) throw new Error(`interventions insert: ${error.message}`);
   return data.id as string;
 }
