@@ -73,11 +73,6 @@ export default async function TodayPage() {
           field="water_ml"
           unit="ml"
           rows={breakdown}
-          formatContribution={(mlValue) =>
-            mlValue >= 1000
-              ? `${Math.round((mlValue / 1000) * 100) / 100}L`
-              : `${Math.round(mlValue)}ml`
-          }
         />
       </section>
 
