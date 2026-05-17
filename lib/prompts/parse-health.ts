@@ -41,8 +41,18 @@ Hard rules — these matter:
    beans, rice, eggs, chicken, beef, fish, salmon, turkey, vegetables_mixed, leafy_greens,
    fruit, berries, nuts, seeds, dairy, yogurt, cheese, bread, pasta, oats, potato,
    olive_oil, butter, ferments, kimchi, sauerkraut, sweetener_added, ultra_processed,
-   coffee, alcohol, soda, juice, protein_shake, supplement, other.
+   coffee, alcohol, soda, juice, protein_shake, other.
    If unsure use "other" or null.
+
+3a. DO NOT include supplements / vitamin stacks in food_items. Those are
+    tracked separately via the supplement parser. Examples to EXCLUDE
+    from food_items (but DO still count protein/calories from protein
+    shakes since they're caloric):
+      - "morning vitamin stack", "sleep stack", "took my vitamins"
+      - "creatine", "psyllium husk", "collagen"
+      - individual pills like "Vitamin D3", "magnesium"
+    Protein shakes ARE food (24g protein, ~120 kcal whey) — keep in
+    food_items with canonical_tag protein_shake.
 
 4. SYMPTOMS: short snake_case strings only. Examples: headache, brain_fog, bloating,
    acid_reflux, joint_pain, fatigue, anxiety, nausea, congestion. Capture only when stated.
