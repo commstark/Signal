@@ -59,8 +59,8 @@ create table if not exists entries (
   created_at        timestamptz not null default now()
 );
 
-create index entries_user_occurred_idx on entries (user_id, occurred_at desc);
-create index entries_intent_idx        on entries (user_id, intent, occurred_at desc);
+create index if not exists entries_user_occurred_idx on entries (user_id, occurred_at desc);
+create index if not exists entries_intent_idx        on entries (user_id, intent, occurred_at desc);
 
 -- =====================================================================
 -- Health log facts — structured nutrition/mood/energy per entry
@@ -102,8 +102,8 @@ create table if not exists health_logs (
   created_at          timestamptz not null default now()
 );
 
-create index health_logs_user_occurred_idx on health_logs (user_id, occurred_at desc);
-create index health_logs_intervention_idx on health_logs (intervention_id) where intervention_id is not null;
+create index if not exists health_logs_user_occurred_idx on health_logs (user_id, occurred_at desc);
+create index if not exists health_logs_intervention_idx on health_logs (intervention_id) where intervention_id is not null;
 
 -- Normalized food items so pattern hunting can query "how often did Jon eat beans"
 -- without jsonb gymnastics.
@@ -119,8 +119,8 @@ create table if not exists food_log_items (
   created_at      timestamptz not null default now()
 );
 
-create index food_log_items_user_tag_idx       on food_log_items (user_id, canonical_tag, occurred_at desc);
-create index food_log_items_health_log_idx     on food_log_items (health_log_id);
+create index if not exists food_log_items_user_tag_idx       on food_log_items (user_id, canonical_tag, occurred_at desc);
+create index if not exists food_log_items_health_log_idx     on food_log_items (health_log_id);
 
 -- =====================================================================
 -- Workouts — sessions, exercises, sets
@@ -134,7 +134,7 @@ create table if not exists workout_sessions (
   created_at    timestamptz not null default now()
 );
 
-create index workout_sessions_user_started_idx on workout_sessions (user_id, started_at desc);
+create index if not exists workout_sessions_user_started_idx on workout_sessions (user_id, started_at desc);
 
 create table if not exists workout_exercises (
   id              uuid primary key default uuid_generate_v4(),
@@ -149,9 +149,9 @@ create table if not exists workout_exercises (
   created_at      timestamptz not null default now()
 );
 
-create index workout_exercises_user_occurred_idx on workout_exercises (user_id, occurred_at desc);
-create index workout_exercises_muscle_idx        on workout_exercises (user_id, muscle_group, occurred_at desc);
-create index workout_exercises_intervention_idx  on workout_exercises (intervention_id) where intervention_id is not null;
+create index if not exists workout_exercises_user_occurred_idx on workout_exercises (user_id, occurred_at desc);
+create index if not exists workout_exercises_muscle_idx        on workout_exercises (user_id, muscle_group, occurred_at desc);
+create index if not exists workout_exercises_intervention_idx  on workout_exercises (intervention_id) where intervention_id is not null;
 
 create table if not exists workout_sets (
   id            uuid primary key default uuid_generate_v4(),
@@ -164,7 +164,7 @@ create table if not exists workout_sets (
   created_at    timestamptz not null default now()
 );
 
-create index workout_sets_exercise_idx on workout_sets (exercise_id, set_number);
+create index if not exists workout_sets_exercise_idx on workout_sets (exercise_id, set_number);
 
 -- =====================================================================
 -- Supplements — known stack + daily adherence
@@ -183,7 +183,7 @@ create table if not exists supplements (
   created_at   timestamptz not null default now()
 );
 
-create index supplements_user_active_idx on supplements (user_id, active, timing);
+create index if not exists supplements_user_active_idx on supplements (user_id, active, timing);
 
 create table if not exists supplement_logs (
   id              uuid primary key default uuid_generate_v4(),
@@ -198,8 +198,8 @@ create table if not exists supplement_logs (
   created_at      timestamptz not null default now()
 );
 
-create index supplement_logs_user_occurred_idx on supplement_logs (user_id, occurred_at desc);
-create index supplement_logs_intervention_idx on supplement_logs (intervention_id) where intervention_id is not null;
+create index if not exists supplement_logs_user_occurred_idx on supplement_logs (user_id, occurred_at desc);
+create index if not exists supplement_logs_intervention_idx on supplement_logs (intervention_id) where intervention_id is not null;
 
 -- =====================================================================
 -- Interventions — anything Jon changes (start/stop a supplement, food, behavior)
@@ -220,7 +220,7 @@ create table if not exists interventions (
   created_at                timestamptz not null default now()
 );
 
-create index interventions_user_status_idx on interventions (user_id, status, started_at desc);
+create index if not exists interventions_user_status_idx on interventions (user_id, status, started_at desc);
 
 -- =====================================================================
 -- Insights — what the pattern engine surfaces
@@ -242,8 +242,8 @@ create table if not exists insights (
   created_at      timestamptz not null default now()
 );
 
-create index insights_user_surfaced_idx on insights (user_id, surfaced_at desc);
-create index insights_kind_idx          on insights (user_id, kind, surfaced_at desc);
+create index if not exists insights_user_surfaced_idx on insights (user_id, surfaced_at desc);
+create index if not exists insights_kind_idx          on insights (user_id, kind, surfaced_at desc);
 
 -- Agent tables intentionally removed: open-ended chat happens in Claude/ChatGPT
 -- via the Ask AI export. We don't store agents, conversations, or messages.
@@ -264,7 +264,7 @@ create table if not exists medical_documents (
   created_at      timestamptz not null default now()
 );
 
-create index medical_documents_user_idx on medical_documents (user_id, doc_date desc);
+create index if not exists medical_documents_user_idx on medical_documents (user_id, doc_date desc);
 
 -- =====================================================================
 -- Bloodwork — lab results over time
@@ -279,7 +279,7 @@ create table if not exists bloodwork_draws (
   created_at   timestamptz not null default now()
 );
 
-create index bloodwork_draws_user_drawn_idx on bloodwork_draws (user_id, drawn_at desc);
+create index if not exists bloodwork_draws_user_drawn_idx on bloodwork_draws (user_id, drawn_at desc);
 
 create table if not exists bloodwork_markers (
   id             uuid primary key default uuid_generate_v4(),
@@ -297,7 +297,7 @@ create table if not exists bloodwork_markers (
   created_at     timestamptz not null default now()
 );
 
-create index bloodwork_markers_user_marker_idx on bloodwork_markers (user_id, marker_key);
+create index if not exists bloodwork_markers_user_marker_idx on bloodwork_markers (user_id, marker_key);
 
 -- =====================================================================
 -- Bloodwork expectations — "what should I be hoping to see at the next draw"
@@ -320,7 +320,7 @@ create table if not exists bloodwork_expectations (
   created_at          timestamptz not null default now()
 );
 
-create index bloodwork_expectations_user_marker_idx on bloodwork_expectations (user_id, marker_key, expected_for_date desc);
+create index if not exists bloodwork_expectations_user_marker_idx on bloodwork_expectations (user_id, marker_key, expected_for_date desc);
 
 -- =====================================================================
 -- Summaries — rolling checkpoints for context management
@@ -338,7 +338,7 @@ create table if not exists summaries (
   created_at   timestamptz not null default now()
 );
 
-create index summaries_user_scope_idx on summaries (user_id, scope, period_start desc);
+create index if not exists summaries_user_scope_idx on summaries (user_id, scope, period_start desc);
 
 -- =====================================================================
 -- Notifications — for push notification tracking
@@ -356,7 +356,7 @@ create table if not exists notifications (
   created_at   timestamptz not null default now()
 );
 
-create index notifications_user_sent_idx on notifications (user_id, sent_at desc);
+create index if not exists notifications_user_sent_idx on notifications (user_id, sent_at desc);
 
 -- =====================================================================
 -- Push subscriptions — Web Push API endpoints
@@ -388,8 +388,8 @@ create table if not exists api_usage (
   created_at    timestamptz not null default now()
 );
 
-create index api_usage_user_created_idx on api_usage (user_id, created_at desc);
-create index api_usage_service_idx       on api_usage (user_id, service, created_at desc);
+create index if not exists api_usage_user_created_idx on api_usage (user_id, created_at desc);
+create index if not exists api_usage_service_idx       on api_usage (user_id, service, created_at desc);
 
 -- =====================================================================
 -- Seed data — Jon's known supplement stack
@@ -431,18 +431,29 @@ create index api_usage_service_idx       on api_usage (user_id, service, created
 -- =====================================================================
 -- Deferred foreign keys (intervention_id) — added here because health_logs,
 -- supplement_logs, and workout_exercises are defined before interventions.
+-- Wrapped in DO blocks so re-running this file doesn't error on the
+-- "constraint already exists" case.
 -- =====================================================================
-alter table health_logs
-  add constraint health_logs_intervention_id_fkey
-  foreign key (intervention_id) references interventions(id) on delete set null;
+do $$ begin
+  alter table health_logs
+    add constraint health_logs_intervention_id_fkey
+    foreign key (intervention_id) references interventions(id) on delete set null;
+exception when duplicate_object then null;
+end $$;
 
-alter table supplement_logs
-  add constraint supplement_logs_intervention_id_fkey
-  foreign key (intervention_id) references interventions(id) on delete set null;
+do $$ begin
+  alter table supplement_logs
+    add constraint supplement_logs_intervention_id_fkey
+    foreign key (intervention_id) references interventions(id) on delete set null;
+exception when duplicate_object then null;
+end $$;
 
-alter table workout_exercises
-  add constraint workout_exercises_intervention_id_fkey
-  foreign key (intervention_id) references interventions(id) on delete set null;
+do $$ begin
+  alter table workout_exercises
+    add constraint workout_exercises_intervention_id_fkey
+    foreign key (intervention_id) references interventions(id) on delete set null;
+exception when duplicate_object then null;
+end $$;
 
 -- =====================================================================
 -- RLS — simple gate. Single user, but enable for safety in case multi-user later.
