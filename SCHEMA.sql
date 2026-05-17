@@ -56,6 +56,14 @@ create table if not exists entries (
   intent            text not null,                         -- 'health_log' | 'workout_log' | 'supplement_log' | 'intervention_start' | 'intervention_stop' | 'free_note' | 'mixed'
   parse_model       text,                                  -- e.g. 'claude-haiku-4-5'
   parse_cost_usd    numeric(8,5),
+  -- Hybrid extraction layer:
+  -- extracted_facts holds the LLM's full structured output even when a
+  -- canonical insert fails. parse_warnings lists any per-section issues
+  -- (out-of-range values, missing columns) so the UI can surface
+  -- partial-parse state instead of silently looking "logged".
+  extracted_facts   jsonb,
+  parse_warnings    text[],
+  parse_status      text,                                  -- 'ok' | 'partial' | 'failed'
   created_at        timestamptz not null default now()
 );
 
@@ -144,6 +152,7 @@ create table if not exists workout_exercises (
   intervention_id uuid,                                              -- FK added at end of file
   exercise_name   text not null,                                    -- 'barbell bench press'
   muscle_group    text,                                              -- 'chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'full_body'
+  exercise_type   text,                                              -- 'strength' | 'cardio' | 'conditioning' | 'mobility' | 'isometric'
   occurred_at     timestamptz not null,
   notes           text,
   created_at      timestamptz not null default now()
@@ -160,6 +169,14 @@ create table if not exists workout_sets (
   weight_lb     numeric(6,2),
   reps          int,
   rpe           numeric(3,1),                            -- rate of perceived exertion 1-10
+  -- Non-weight metrics so cardio / isometric exercises don't have to fake
+  -- reps+weight. Examples:
+  --  dead hang 45s  -> duration_s=45
+  --  100 skips       -> count=100
+  --  400m run        -> distance_m=400
+  duration_s    numeric(7,2),
+  distance_m    numeric(7,2),
+  count         int,
   notes         text,
   created_at    timestamptz not null default now()
 );

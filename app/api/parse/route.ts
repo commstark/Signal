@@ -15,6 +15,7 @@ import {
   writeWorkoutLog,
   writeSupplementLog,
   writeIntervention,
+  type WriteResult,
 } from '@/lib/writers';
 import type {
   HealthLogParsed,
@@ -30,8 +31,8 @@ interface Body {
   transcript: string;
   audio_url?: string | null;
   audio_duration_s?: number | null;
-  occurred_at?: string; // ISO; defaults to now
-  re_parse_entry_id?: string; // when re-parsing after a transcript edit
+  occurred_at?: string;
+  re_parse_entry_id?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -51,7 +52,20 @@ export async function POST(req: NextRequest) {
   const transcript = body.transcript.trim();
 
   // 1. Classify intent (Haiku).
-  const { intent, usage: intentUsage } = await classifyIntent(transcript);
+  let intent: Awaited<ReturnType<typeof classifyIntent>>['intent'];
+  let intentUsage: ParseUsage;
+  try {
+    const res = await classifyIntent(transcript);
+    intent = res.intent;
+    intentUsage = res.usage;
+  } catch (err) {
+    console.error('intent classify failed', err);
+    return NextResponse.json(
+      { error: `intent classify: ${errorMessage(err)}` },
+      { status: 500 },
+    );
+  }
+
   await recordUsage({
     userId: user.id,
     service: 'anthropic',
@@ -63,7 +77,7 @@ export async function POST(req: NextRequest) {
   });
   const usageTotals: ParseUsage[] = [intentUsage];
 
-  // 2. Upsert the entry row. If re-parsing, replace prior structured data.
+  // 2. Upsert the entry row.
   const admin = createSupabaseAdmin();
   let entryId: string;
   if (body.re_parse_entry_id) {
@@ -75,6 +89,9 @@ export async function POST(req: NextRequest) {
         intent,
         transcript_edited: true,
         parse_model: intentUsage.model,
+        parse_status: 'pending',
+        parse_warnings: [],
+        extracted_facts: null,
       })
       .eq('id', entryId)
       .eq('user_id', user.id);
@@ -84,8 +101,6 @@ export async function POST(req: NextRequest) {
         { status: 500 },
       );
     }
-
-    // Clear structured rows for this entry so the re-parse writes fresh data.
     await clearStructuredForEntry(admin, entryId);
   } else {
     const { data, error } = await admin
@@ -99,22 +114,32 @@ export async function POST(req: NextRequest) {
         intent,
         parse_model: intentUsage.model,
         parse_cost_usd: intentUsage.costUsd,
+        parse_status: 'pending',
       })
       .select('id')
       .single();
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error || !data) {
+      return NextResponse.json(
+        { error: `entries insert: ${error?.message ?? 'unknown'}` },
+        { status: 500 },
+      );
     }
     entryId = data.id as string;
   }
 
-  // 3. Route to the per-intent parser and writer.
-  try {
-    if (intent === 'health_log' || intent === 'mixed' || intent === 'free_note') {
-      // We always attempt health_log extraction on health/mixed/free_note —
-      // a "free_note" might still mention how Jon felt.
+  // 3. Run the per-intent parsers and writers. Never 500 here — collect
+  //    warnings and persist them on the entry so the UI can show partial
+  //    state. extracted_facts captures everything the LLM returned, even
+  //    when canonical inserts fail.
+  const extractedFacts: Record<string, unknown> = {};
+  const warnings: string[] = [];
+  const sectionResults: Array<{ section: string; result: WriteResult }> = [];
+
+  if (intent === 'health_log' || intent === 'mixed' || intent === 'free_note') {
+    try {
       const { value, usage } = await parseHealthLog(transcript, occurredAt);
       usageTotals.push(usage);
+      extractedFacts.health = value;
       await recordUsage({
         userId: user.id,
         service: 'anthropic',
@@ -125,17 +150,25 @@ export async function POST(req: NextRequest) {
         costUsd: usage.costUsd,
         entryId,
       });
-      await writeHealthLog({
+      const result = await writeHealthLog({
         userId: user.id,
         entryId,
         occurredAt,
         parsed: value as HealthLogParsed,
       });
+      sectionResults.push({ section: 'health', result });
+      warnings.push(...result.warnings);
+    } catch (err) {
+      console.error('health parse error', err);
+      warnings.push(`health parse failed: ${errorMessage(err)}`);
     }
+  }
 
-    if (intent === 'workout_log' || intent === 'mixed') {
+  if (intent === 'workout_log' || intent === 'mixed') {
+    try {
       const { value, usage } = await parseWorkoutLog(transcript, occurredAt);
       usageTotals.push(usage);
+      extractedFacts.workout = value;
       await recordUsage({
         userId: user.id,
         service: 'anthropic',
@@ -146,15 +179,22 @@ export async function POST(req: NextRequest) {
         costUsd: usage.costUsd,
         entryId,
       });
-      await writeWorkoutLog({
+      const result = await writeWorkoutLog({
         userId: user.id,
         entryId,
         occurredAt,
         parsed: value as WorkoutLogParsed,
       });
+      sectionResults.push({ section: 'workout', result });
+      warnings.push(...result.warnings);
+    } catch (err) {
+      console.error('workout parse error', err);
+      warnings.push(`workout parse failed: ${errorMessage(err)}`);
     }
+  }
 
-    if (intent === 'supplement_log' || intent === 'mixed') {
+  if (intent === 'supplement_log' || intent === 'mixed') {
+    try {
       const { data: stack } = await admin
         .from('supplements')
         .select('id, name, dose, timing, stack_group')
@@ -162,6 +202,7 @@ export async function POST(req: NextRequest) {
         .eq('active', true);
       const { value, usage } = await parseSupplementLog(transcript, stack ?? []);
       usageTotals.push(usage);
+      extractedFacts.supplement = value;
       await recordUsage({
         userId: user.id,
         service: 'anthropic',
@@ -172,18 +213,26 @@ export async function POST(req: NextRequest) {
         costUsd: usage.costUsd,
         entryId,
       });
-      await writeSupplementLog({
+      const result = await writeSupplementLog({
         userId: user.id,
         entryId,
         occurredAt,
         parsed: value as SupplementLogParsed,
       });
+      sectionResults.push({ section: 'supplement', result });
+      warnings.push(...result.warnings);
+    } catch (err) {
+      console.error('supplement parse error', err);
+      warnings.push(`supplement parse failed: ${errorMessage(err)}`);
     }
+  }
 
-    if (intent === 'intervention_start' || intent === 'intervention_stop') {
+  if (intent === 'intervention_start' || intent === 'intervention_stop') {
+    try {
       const dir: 'start' | 'stop' = intent === 'intervention_start' ? 'start' : 'stop';
       const { value, usage } = await parseIntervention(transcript, dir);
       usageTotals.push(usage);
+      extractedFacts.intervention = value;
       await recordUsage({
         userId: user.id,
         service: 'anthropic',
@@ -194,35 +243,51 @@ export async function POST(req: NextRequest) {
         costUsd: usage.costUsd,
         entryId,
       });
-      await writeIntervention({
+      const result = await writeIntervention({
         userId: user.id,
         entryId,
         occurredAt,
         parsed: value as InterventionParsed,
       });
+      sectionResults.push({ section: 'intervention', result });
+      warnings.push(...result.warnings);
+    } catch (err) {
+      console.error('intervention parse error', err);
+      warnings.push(`intervention parse failed: ${errorMessage(err)}`);
     }
-  } catch (err) {
-    console.error('parse error', err);
-    const msg = errorMessage(err);
-    return NextResponse.json(
-      { error: msg, entry_id: entryId, intent },
-      { status: 500 },
-    );
   }
 
-  // Update entry-level parse cost summary.
+  // 4. Decide the entry's final parse status.
+  let parseStatus: 'ok' | 'partial' | 'failed';
+  if (sectionResults.length === 0) {
+    parseStatus = warnings.length === 0 ? 'ok' : 'failed';
+  } else if (sectionResults.every((s) => s.result.ok) && warnings.length === 0) {
+    parseStatus = 'ok';
+  } else if (sectionResults.some((s) => s.result.ok)) {
+    parseStatus = 'partial';
+  } else {
+    parseStatus = 'failed';
+  }
+
   const totalCost = usageTotals.reduce((acc, u) => acc + u.costUsd, 0);
   await admin
     .from('entries')
-    .update({ parse_cost_usd: totalCost })
+    .update({
+      parse_cost_usd: totalCost,
+      extracted_facts: extractedFacts,
+      parse_warnings: warnings,
+      parse_status: parseStatus,
+    })
     .eq('id', entryId);
 
-  return NextResponse.json({ entry_id: entryId, intent });
+  return NextResponse.json({
+    entry_id: entryId,
+    intent,
+    parse_status: parseStatus,
+    warnings,
+  });
 }
 
-// PostgrestError and similar SDK errors aren't Error instances but
-// carry a useful .message (and often .code / .details / .hint).
-// Extract them rather than falling back to a generic string.
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   if (err && typeof err === 'object') {
@@ -235,7 +300,7 @@ function errorMessage(err: unknown): string {
     ].filter(Boolean);
     if (parts.length) return parts.join(' · ');
   }
-  return 'parse failed';
+  return 'unknown error';
 }
 
 async function clearStructuredForEntry(
@@ -245,15 +310,6 @@ async function clearStructuredForEntry(
   // Cascading deletes on health_logs handle food_log_items.
   await admin.from('health_logs').delete().eq('entry_id', entryId);
   await admin.from('supplement_logs').delete().eq('entry_id', entryId);
-
   // Workout exercises sets cascade; sessions are kept (they may host other entries).
-  const { data: exs } = await admin
-    .from('workout_exercises')
-    .select('id')
-    .eq('entry_id', entryId);
-  if (exs?.length) {
-    await admin.from('workout_exercises').delete().eq('entry_id', entryId);
-  }
-
-  // Interventions: we don't auto-undo on re-parse. The user can delete manually.
+  await admin.from('workout_exercises').delete().eq('entry_id', entryId);
 }
