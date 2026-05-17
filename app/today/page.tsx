@@ -1,7 +1,13 @@
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Check, Circle } from 'lucide-react';
 import { requireUser } from '@/lib/auth';
-import { fetchTodayForUser, fetchTodayEntries } from '@/lib/today';
+import {
+  fetchTodayForUser,
+  fetchTodayEntries,
+  fetchTodayWorkouts,
+  fetchTodaySupplements,
+  type TodaySupplementItem,
+} from '@/lib/today';
 import { Stat } from '@/components/Stat';
 import { TranscriptEditor } from '@/components/TranscriptEditor';
 
@@ -9,9 +15,11 @@ export const dynamic = 'force-dynamic';
 
 export default async function TodayPage() {
   const user = await requireUser();
-  const [today, entries] = await Promise.all([
+  const [today, entries, workouts, supplements] = await Promise.all([
     fetchTodayForUser(user.id),
     fetchTodayEntries(user.id),
+    fetchTodayWorkouts(user.id),
+    fetchTodaySupplements(user.id),
   ]);
 
   return (
@@ -50,6 +58,64 @@ export default async function TodayPage() {
           value={today.mood_avg != null ? today.mood_avg.toFixed(1) : '—'}
           label="mood avg"
         />
+      </section>
+
+      <section className="px-4 mt-8">
+        <h2 className="text-h3 mb-3">workouts</h2>
+        {workouts.exercises.length === 0 && workouts.session_count === 0 ? (
+          <p className="text-body text-ink-2">no workouts today.</p>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-small text-ink-2 font-mono">
+              {workouts.session_count} session{workouts.session_count === 1 ? '' : 's'}
+              {' · '}
+              {workouts.exercises.length} exercise{workouts.exercises.length === 1 ? '' : 's'}
+              {workouts.total_minutes != null && ` · ${workouts.total_minutes} min`}
+            </p>
+            <ul className="space-y-2">
+              {workouts.exercises.map((ex, i) => (
+                <li key={i} className="border-l-2 border-line pl-3">
+                  <div className="text-body">{ex.exercise_name}</div>
+                  <div className="text-small text-ink-2 font-mono flex gap-2 flex-wrap">
+                    {ex.muscle_group && <span>{ex.muscle_group}</span>}
+                    {ex.exercise_type && <span>· {ex.exercise_type}</span>}
+                    <span>· {ex.set_count} set{ex.set_count === 1 ? '' : 's'}</span>
+                    {ex.total_volume_lb != null && ex.total_volume_lb > 0 && (
+                      <span>· {ex.total_volume_lb} lb total</span>
+                    )}
+                    {ex.total_duration_s != null && ex.total_duration_s > 0 && (
+                      <span>· {formatDuration(ex.total_duration_s)}</span>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
+
+      <section className="px-4 mt-8">
+        <h2 className="text-h3 mb-3">supplements</h2>
+        <SupplementGroup label="morning" items={supplements.morning} />
+        <SupplementGroup label="night" items={supplements.night} />
+        {supplements.other.length > 0 && (
+          <SupplementGroup label="other" items={supplements.other} />
+        )}
+        {supplements.unmatched.length > 0 && (
+          <div className="mt-4">
+            <p className="text-micro font-mono text-ink-3 uppercase tracking-wide mb-1">
+              logged · not in stack
+            </p>
+            <ul className="space-y-1">
+              {supplements.unmatched.map((u, i) => (
+                <li key={i} className="text-small text-ink-2 flex items-center gap-2">
+                  <Check size={14} className="text-ink-2" />
+                  {u.name}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </section>
 
       <section className="px-4 mt-8">
@@ -101,6 +167,43 @@ export default async function TodayPage() {
       </section>
     </main>
   );
+}
+
+function SupplementGroup({ label, items }: { label: string; items: TodaySupplementItem[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="mt-4 first:mt-0">
+      <p className="text-micro font-mono text-ink-3 uppercase tracking-wide mb-2">
+        {label}
+      </p>
+      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-y-1 gap-x-4">
+        {items.map((s) => (
+          <li key={s.id} className="flex items-center gap-2 text-small">
+            {s.taken ? (
+              <Check size={14} className="text-ink" />
+            ) : s.skipped ? (
+              <span className="w-[14px] text-center text-signal-red font-mono leading-none">×</span>
+            ) : (
+              <Circle size={12} className="text-ink-3" />
+            )}
+            <span className={s.taken ? 'text-ink' : 'text-ink-2'}>
+              {s.name}
+            </span>
+            {s.dose && (
+              <span className="text-ink-3 font-mono text-micro">{s.dose}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return s === 0 ? `${m}m` : `${m}m ${s}s`;
 }
 
 function formatTodayLabel() {
