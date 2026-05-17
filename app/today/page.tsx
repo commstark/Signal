@@ -75,7 +75,10 @@ export default async function TodayPage() {
             <ul className="space-y-2">
               {workouts.exercises.map((ex, i) => (
                 <li key={i} className="border-l-2 border-line pl-3">
-                  <div className="text-body">{ex.exercise_name}</div>
+                  <div className="text-body flex items-baseline gap-2">
+                    <span>{ex.exercise_name}</span>
+                    <span className="text-micro font-mono text-ink-3">{formatTime(ex.occurred_at)}</span>
+                  </div>
                   <div className="text-small text-ink-2 font-mono flex gap-2 flex-wrap">
                     {ex.muscle_group && <span>{ex.muscle_group}</span>}
                     {ex.exercise_type && <span>· {ex.exercise_type}</span>}
@@ -97,10 +100,8 @@ export default async function TodayPage() {
       <section className="px-4 mt-8">
         <h2 className="text-h3 mb-3">supplements</h2>
         <SupplementGroup label="morning" items={supplements.morning} />
+        <SupplementGroup label="day" items={supplements.day} />
         <SupplementGroup label="night" items={supplements.night} />
-        {supplements.other.length > 0 && (
-          <SupplementGroup label="other" items={supplements.other} />
-        )}
         {supplements.unmatched.length > 0 && (
           <div className="mt-4">
             <p className="text-micro font-mono text-ink-3 uppercase tracking-wide mb-1">

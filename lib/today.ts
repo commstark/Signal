@@ -101,6 +101,7 @@ export interface TodayWorkoutExercise {
   exercise_name: string;
   muscle_group: string | null;
   exercise_type: string | null;
+  occurred_at: string;
   set_count: number;
   total_volume_lb: number | null; // sum(weight_lb * reps) for strength sets
   total_duration_s: number | null; // sum(duration_s) for isometric/cardio
@@ -133,10 +134,11 @@ export async function fetchTodayWorkouts(userId: string): Promise<TodayWorkouts>
 
   const { data: exs } = await sb
     .from('workout_exercises')
-    .select('id, exercise_name, muscle_group, exercise_type')
+    .select('id, exercise_name, muscle_group, exercise_type, occurred_at')
     .eq('user_id', userId)
     .gte('occurred_at', startIso)
-    .lt('occurred_at', endIso);
+    .lt('occurred_at', endIso)
+    .order('occurred_at', { ascending: true });
 
   if (!exs?.length) {
     return { session_count: sessions?.length ?? 0, total_minutes: null, exercises: [] };
@@ -180,6 +182,7 @@ export async function fetchTodayWorkouts(userId: string): Promise<TodayWorkouts>
       exercise_name: e.exercise_name as string,
       muscle_group: (e.muscle_group as string | null) ?? null,
       exercise_type: (e.exercise_type as string | null) ?? null,
+      occurred_at: e.occurred_at as string,
       set_count: exSets.length,
       total_volume_lb: volSeen ? Math.round(vol) : null,
       total_duration_s: durSeen ? Math.round(dur) : null,
@@ -203,10 +206,24 @@ export interface TodaySupplementItem {
 
 export interface TodaySupplements {
   morning: TodaySupplementItem[];
+  day: TodaySupplementItem[];
   night: TodaySupplementItem[];
-  other: TodaySupplementItem[];
-  // Anything the user logged today that's NOT in the canonical stack.
+  // Anything the user logged today that's NOT in the canonical stack
+  // AND doesn't reference a known group (morning/day/night).
   unmatched: Array<{ name: string; taken: boolean }>;
+}
+
+// Detect group-reference logs like "morning vitamin stack" or "took my
+// sleep stack" and return which group they refer to. Null if it looks
+// like a real one-off supplement instead.
+function detectGroupReference(name: string): 'morning_stack' | 'day_stack' | 'sleep_stack' | null {
+  const n = name.toLowerCase();
+  const isStackPhrase = /\bstack\b|\bvitamins?\b/.test(n);
+  if (!isStackPhrase) return null;
+  if (/\bmorning\b/.test(n)) return 'morning_stack';
+  if (/\bnight\b|\bsleep\b|\bbedtime\b|\bevening\b/.test(n)) return 'sleep_stack';
+  if (/\bday\b|\bmidday\b|\blunch\b|\bnoon\b/.test(n)) return 'day_stack';
+  return null;
 }
 
 export async function fetchTodaySupplements(userId: string): Promise<TodaySupplements> {
@@ -230,23 +247,45 @@ export async function fetchTodaySupplements(userId: string): Promise<TodaySupple
   const skippedIds = new Set<string>();
   const takenNames = new Set<string>();
   const skippedNames = new Set<string>();
+  const takenGroups = new Set<string>();
+  const skippedGroups = new Set<string>();
+
   for (const l of logs ?? []) {
     if (l.supplement_id) {
       (l.taken ? takenIds : skippedIds).add(l.supplement_id as string);
-    } else if (l.supplement_name) {
+      continue;
+    }
+    if (!l.supplement_name) continue;
+    const group = detectGroupReference(String(l.supplement_name));
+    if (group) {
+      (l.taken ? takenGroups : skippedGroups).add(group);
+    } else {
       (l.taken ? takenNames : skippedNames).add(String(l.supplement_name).toLowerCase());
     }
   }
 
+  function bucketFor(s: { stack_group: string | null; timing: string | null }):
+    'morning_stack' | 'day_stack' | 'sleep_stack' {
+    if (s.stack_group === 'morning_stack' || s.timing === 'morning') return 'morning_stack';
+    if (s.stack_group === 'sleep_stack' || s.timing === 'night') return 'sleep_stack';
+    return 'day_stack';
+  }
+
   const morning: TodaySupplementItem[] = [];
+  const day: TodaySupplementItem[] = [];
   const night: TodaySupplementItem[] = [];
-  const other: TodaySupplementItem[] = [];
 
   for (const s of stack ?? []) {
     const id = s.id as string;
     const nameKey = String(s.name).toLowerCase();
-    const taken = takenIds.has(id) || takenNames.has(nameKey);
-    const skipped = skippedIds.has(id) || skippedNames.has(nameKey);
+    const bucket = bucketFor({
+      stack_group: (s.stack_group as string | null) ?? null,
+      timing: (s.timing as string | null) ?? null,
+    });
+    const taken =
+      takenIds.has(id) || takenNames.has(nameKey) || takenGroups.has(bucket);
+    const skipped =
+      !taken && (skippedIds.has(id) || skippedNames.has(nameKey) || skippedGroups.has(bucket));
     const item: TodaySupplementItem = {
       id,
       name: s.name as string,
@@ -254,22 +293,25 @@ export async function fetchTodaySupplements(userId: string): Promise<TodaySupple
       taken,
       skipped,
     };
-    if (s.stack_group === 'morning_stack' || s.timing === 'morning') {
-      morning.push(item);
-    } else if (s.stack_group === 'sleep_stack' || s.timing === 'night') {
-      night.push(item);
-    } else {
-      other.push(item);
-    }
+    if (bucket === 'morning_stack') morning.push(item);
+    else if (bucket === 'sleep_stack') night.push(item);
+    else day.push(item);
   }
 
-  // Logged but not in canonical stack — e.g. one-offs the LLM couldn't match.
+  // Logged but not in canonical stack AND not a group reference.
   const stackNames = new Set((stack ?? []).map((s) => String(s.name).toLowerCase()));
   const unmatched = (logs ?? [])
-    .filter((l) => !l.supplement_id && l.supplement_name && !stackNames.has(String(l.supplement_name).toLowerCase()))
+    .filter((l) => {
+      if (l.supplement_id) return false;
+      if (!l.supplement_name) return false;
+      const n = String(l.supplement_name);
+      if (stackNames.has(n.toLowerCase())) return false;
+      if (detectGroupReference(n)) return false;
+      return true;
+    })
     .map((l) => ({ name: l.supplement_name as string, taken: !!l.taken }));
 
-  return { morning, night, other, unmatched };
+  return { morning, day, night, unmatched };
 }
 
 function avg(xs: number[]) {
