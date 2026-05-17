@@ -75,7 +75,10 @@ function HomeInner() {
           occurred_at: occurredAt,
         }),
       });
-      if (!px.ok) throw new Error(`parse failed: ${px.status}`);
+      if (!px.ok) {
+        const body = await px.json().catch(() => null);
+        throw new Error(body?.error ?? `parse failed: ${px.status}`);
+      }
       const p = (await px.json()) as ParsedSummary;
       setEntryId(p.entry_id);
       setParsedIntent(p.intent);

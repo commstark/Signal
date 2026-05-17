@@ -197,8 +197,9 @@ export async function POST(req: NextRequest) {
     }
   } catch (err) {
     console.error('parse error', err);
+    const msg = err instanceof Error ? err.message : 'parse failed';
     return NextResponse.json(
-      { error: 'parse failed', entry_id: entryId, intent },
+      { error: msg, entry_id: entryId, intent },
       { status: 500 },
     );
   }

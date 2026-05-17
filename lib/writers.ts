@@ -8,6 +8,29 @@ import type {
 
 type Admin = ReturnType<typeof createSupabaseAdmin>;
 
+function clampScore(v: unknown): number | null {
+  if (v == null) return null;
+  const n = typeof v === 'string' ? Number(v) : v;
+  if (typeof n !== 'number' || !Number.isFinite(n)) return null;
+  const int = Math.round(n);
+  if (int < 1 || int > 10) return null;
+  return int;
+}
+
+function asEnum<T extends string>(v: unknown, allowed: readonly T[]): T | null {
+  if (typeof v !== 'string') return null;
+  return (allowed as readonly string[]).includes(v) ? (v as T) : null;
+}
+
+function asArray(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.filter((x): x is string => typeof x === 'string');
+}
+
+const CARB_TIMINGS = ['morning', 'midday', 'evening', 'late_night'] as const;
+const FULLNESS = ['hungry', 'satisfied', 'full', 'stuffed'] as const;
+const CONFIDENCE = ['high', 'medium', 'low'] as const;
+
 async function findActiveInterventionId(
   sb: Admin,
   userId: string,
@@ -32,7 +55,7 @@ export async function writeHealthLog(args: {
 }) {
   const sb = createSupabaseAdmin();
   const interventionId = await findActiveInterventionId(sb, args.userId, args.occurredAt);
-  const n = args.parsed.estimated_nutrition;
+  const n = args.parsed.estimated_nutrition ?? ({} as Partial<HealthLogParsed['estimated_nutrition']>);
   const { data: hl, error } = await sb
     .from('health_logs')
     .insert({
@@ -40,27 +63,27 @@ export async function writeHealthLog(args: {
       user_id: args.userId,
       occurred_at: args.occurredAt,
       intervention_id: interventionId,
-      protein_g: n.protein_g,
-      calories_kcal: n.calories_kcal,
-      fiber_g: n.fiber_g,
-      added_sugars_g: n.added_sugars_g,
-      saturated_fat_present: n.saturated_fat_present,
-      carb_timing: n.carb_timing,
-      ultra_processed: n.ultra_processed,
-      nutrition_confidence: n.confidence,
-      mood_score: args.parsed.mood?.score ?? null,
+      protein_g: n.protein_g ?? null,
+      calories_kcal: n.calories_kcal ?? null,
+      fiber_g: n.fiber_g ?? null,
+      added_sugars_g: n.added_sugars_g ?? null,
+      saturated_fat_present: typeof n.saturated_fat_present === 'boolean' ? n.saturated_fat_present : null,
+      carb_timing: asEnum(n.carb_timing, CARB_TIMINGS),
+      ultra_processed: typeof n.ultra_processed === 'boolean' ? n.ultra_processed : null,
+      nutrition_confidence: asEnum(n.confidence, CONFIDENCE),
+      mood_score: clampScore(args.parsed.mood?.score),
       mood_descriptor: args.parsed.mood?.descriptor ?? null,
-      energy_score: args.parsed.energy?.score ?? null,
+      energy_score: clampScore(args.parsed.energy?.score),
       energy_descriptor: args.parsed.energy?.descriptor ?? null,
-      concentration_score: args.parsed.concentration?.score ?? null,
-      fullness: args.parsed.fullness,
-      symptoms: args.parsed.symptoms ?? [],
-      water_oz: args.parsed.water_oz,
-      free_text_notes: args.parsed.free_text_notes,
+      concentration_score: clampScore(args.parsed.concentration?.score),
+      fullness: asEnum(args.parsed.fullness, FULLNESS),
+      symptoms: asArray(args.parsed.symptoms),
+      water_oz: args.parsed.water_oz ?? null,
+      free_text_notes: args.parsed.free_text_notes ?? null,
     })
     .select('id')
     .single();
-  if (error) throw error;
+  if (error) throw new Error(`health_logs insert: ${error.message}`);
 
   if (args.parsed.food_items?.length) {
     const items = args.parsed.food_items.map((f) => ({
