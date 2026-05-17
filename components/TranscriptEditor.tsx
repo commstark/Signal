@@ -31,18 +31,22 @@ export function TranscriptEditor({ entryId, initial, onSaved }: Props) {
       setText(savedText);
       return;
     }
+    await runParse(next);
+  }
+
+  async function runParse(transcript: string) {
     setStatus('saving');
     setErrorMsg(null);
     try {
       const res = await fetch('/api/parse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript: next, re_parse_entry_id: entryId }),
+        body: JSON.stringify({ transcript, re_parse_entry_id: entryId }),
       });
       if (!res.ok) throw new Error(`save failed: ${res.status}`);
-      setSavedText(next);
+      setSavedText(transcript);
       setStatus('saved');
-      onSaved?.(next);
+      onSaved?.(transcript);
       // Re-fetch the surrounding server-rendered page (e.g. /today stats)
       // so numbers reflect the re-parsed log immediately.
       router.refresh();
@@ -69,15 +73,24 @@ export function TranscriptEditor({ entryId, initial, onSaved }: Props) {
         >
           {text}
         </button>
-        {status === 'saving' && (
-          <p className="text-micro text-ink-3 font-mono">saving…</p>
-        )}
-        {status === 'saved' && (
-          <p className="text-micro text-ink-3 font-mono">saved · re-parsed</p>
-        )}
-        {status === 'error' && errorMsg && (
-          <p className="text-micro text-signal-red font-mono">{errorMsg}</p>
-        )}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => runParse(savedText)}
+            disabled={status === 'saving'}
+            className="text-micro text-ink-3 font-mono hover:text-ink-2 disabled:opacity-50"
+          >
+            re-parse
+          </button>
+          {status === 'saving' && (
+            <span className="text-micro text-ink-3 font-mono">saving…</span>
+          )}
+          {status === 'saved' && (
+            <span className="text-micro text-ink-3 font-mono">saved · re-parsed</span>
+          )}
+          {status === 'error' && errorMsg && (
+            <span className="text-micro text-signal-red font-mono">{errorMsg}</span>
+          )}
+        </div>
       </div>
     );
   }
