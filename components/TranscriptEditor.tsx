@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface Props {
   entryId: string;
@@ -11,6 +12,7 @@ interface Props {
 type Status = 'idle' | 'saving' | 'saved' | 'error';
 
 export function TranscriptEditor({ entryId, initial, onSaved }: Props) {
+  const router = useRouter();
   const [text, setText] = useState(initial);
   const [savedText, setSavedText] = useState(initial);
   const [editing, setEditing] = useState(false);
@@ -41,6 +43,9 @@ export function TranscriptEditor({ entryId, initial, onSaved }: Props) {
       setSavedText(next);
       setStatus('saved');
       onSaved?.(next);
+      // Re-fetch the surrounding server-rendered page (e.g. /today stats)
+      // so numbers reflect the re-parsed log immediately.
+      router.refresh();
       setTimeout(() => setStatus('idle'), 1500);
     } catch (e) {
       setStatus('error');
