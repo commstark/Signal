@@ -83,7 +83,7 @@ export function TranscriptEditor({ entryId, initial, onSaved }: Props) {
   }
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       <textarea
         ref={textareaRef}
         value={text}
@@ -93,7 +93,27 @@ export function TranscriptEditor({ entryId, initial, onSaved }: Props) {
         rows={Math.max(3, Math.ceil(text.length / 60))}
         className="w-full p-3 bg-surface border border-line rounded text-body focus:border-ink focus:outline-none"
       />
-      <p className="text-micro text-ink-3 font-mono">tap outside to save · esc to cancel</p>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={commit}
+          disabled={status === 'saving'}
+          className="h-9 px-4 bg-accent text-accent-fg rounded text-small font-medium disabled:opacity-60"
+        >
+          {status === 'saving' ? 'saving…' : 'done · re-parse'}
+        </button>
+        <button
+          onClick={() => {
+            setText(savedText);
+            setEditing(false);
+          }}
+          className="h-9 px-4 border border-line rounded text-small"
+        >
+          cancel
+        </button>
+        <span className="text-micro text-ink-3 font-mono ml-auto">
+          tap outside or done
+        </span>
+      </div>
     </div>
   );
 }
