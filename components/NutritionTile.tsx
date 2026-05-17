@@ -26,7 +26,7 @@ export function NutritionTile({ value, label, meta, field, unit, rows }: Props) 
 
   return (
     <>
-      <button onClick={() => setOpen(true)} className="text-left w-full">
+      <button onClick={() => setOpen(true)} className="text-left w-full h-full">
         <Stat value={value} label={label} meta={meta} />
       </button>
 
