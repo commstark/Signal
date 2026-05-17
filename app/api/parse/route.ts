@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
   let entryId: string;
   if (body.re_parse_entry_id) {
     entryId = body.re_parse_entry_id;
-    await admin
+    const { error: upErr } = await admin
       .from('entries')
       .update({
         transcript,
@@ -78,6 +78,12 @@ export async function POST(req: NextRequest) {
       })
       .eq('id', entryId)
       .eq('user_id', user.id);
+    if (upErr) {
+      return NextResponse.json(
+        { error: `entries update: ${upErr.message}`, entry_id: entryId },
+        { status: 500 },
+      );
+    }
 
     // Clear structured rows for this entry so the re-parse writes fresh data.
     await clearStructuredForEntry(admin, entryId);
