@@ -1,26 +1,31 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { RecordButton } from '@/components/RecordButton';
 import { TranscriptEditor } from '@/components/TranscriptEditor';
 import { enqueueCapture } from '@/lib/offline-queue';
 
-interface ParsedSummary {
-  entry_id: string;
-  intent: string;
+type CaptureStatus = 'transcribing' | 'parsing' | 'saved' | 'failed' | 'queued';
+
+interface Capture {
+  id: string;
+  status: CaptureStatus;
+  startedAt: number;
+  transcript?: string;
+  entryId?: string;
+  intent?: string;
+  error?: string;
 }
+
+const MAX_VISIBLE = 5;
 
 function HomeInner() {
   const params = useSearchParams();
   const autoLaunch = params.get('mode') === 'auto';
 
-  const [transcript, setTranscript] = useState<string>('');
-  const [entryId, setEntryId] = useState<string | null>(null);
-  const [parsedIntent, setParsedIntent] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [queued, setQueued] = useState(false);
+  const [captures, setCaptures] = useState<Capture[]>([]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -31,61 +36,83 @@ function HomeInner() {
     return () => window.removeEventListener('online', onOnline);
   }, []);
 
-  function reset() {
-    setTranscript('');
-    setEntryId(null);
-    setParsedIntent(null);
-    setError(null);
-    setQueued(false);
-  }
+  const update = useCallback((id: string, patch: Partial<Capture>) => {
+    setCaptures((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+  }, []);
 
-  async function onRecorded(blob: Blob, mimeType: string, _durationMs: number) {
-    reset();
-    const occurredAt = new Date().toISOString();
+  // Saved/queued rows fade out after a few seconds so the list doesn't
+  // accumulate. Failed rows stay so the user can read the error.
+  useEffect(() => {
+    const terminal = captures.find(
+      (c) => (c.status === 'saved' || c.status === 'queued') && Date.now() - c.startedAt > 0,
+    );
+    if (!terminal) return;
+    const t = setTimeout(() => {
+      setCaptures((prev) => prev.filter((c) => c.id !== terminal.id));
+    }, 8000);
+    return () => clearTimeout(t);
+  }, [captures]);
 
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+  const onRecorded = useCallback(
+    (blob: Blob, mimeType: string, _durationMs: number) => {
       const id = crypto.randomUUID();
-      await enqueueCapture({ id, blob, mimeType, occurredAt });
-      setQueued(true);
-      return;
-    }
-
-    try {
-      const form = new FormData();
-      form.append(
-        'audio',
-        new File([blob], `capture.${extFor(mimeType)}`, { type: mimeType }),
+      const occurredAt = new Date().toISOString();
+      setCaptures((prev) =>
+        [{ id, status: 'transcribing' as CaptureStatus, startedAt: Date.now() }, ...prev].slice(
+          0,
+          MAX_VISIBLE,
+        ),
       );
-      const tx = await fetch('/api/transcribe', { method: 'POST', body: form });
-      if (!tx.ok) throw new Error(`transcribe failed: ${tx.status}`);
-      const t = (await tx.json()) as {
-        transcript: string;
-        audio_url: string | null;
-        audio_duration_s: number | null;
-      };
-      setTranscript(t.transcript);
 
-      const px = await fetch('/api/parse', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transcript: t.transcript,
-          audio_url: t.audio_url,
-          audio_duration_s: t.audio_duration_s,
-          occurred_at: occurredAt,
-        }),
-      });
-      if (!px.ok) {
-        const body = await px.json().catch(() => null);
-        throw new Error(body?.error ?? `parse failed: ${px.status}`);
-      }
-      const p = (await px.json()) as ParsedSummary;
-      setEntryId(p.entry_id);
-      setParsedIntent(p.intent);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed');
-    }
-  }
+      // Fire and forget. Even if the user navigates away, the in-flight
+      // fetches keep running and the server still writes to the DB —
+      // they just won't see the UI status update.
+      (async () => {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+          await enqueueCapture({ id, blob, mimeType, occurredAt });
+          update(id, { status: 'queued' });
+          return;
+        }
+        try {
+          const form = new FormData();
+          form.append(
+            'audio',
+            new File([blob], `capture.${extFor(mimeType)}`, { type: mimeType }),
+          );
+          const tx = await fetch('/api/transcribe', { method: 'POST', body: form });
+          if (!tx.ok) throw new Error(`transcribe failed: ${tx.status}`);
+          const t = (await tx.json()) as {
+            transcript: string;
+            audio_url: string | null;
+            audio_duration_s: number | null;
+          };
+          update(id, { status: 'parsing', transcript: t.transcript });
+
+          const px = await fetch('/api/parse', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              transcript: t.transcript,
+              audio_url: t.audio_url,
+              audio_duration_s: t.audio_duration_s,
+              occurred_at: occurredAt,
+            }),
+          });
+          if (!px.ok) {
+            const body = await px.json().catch(() => null);
+            throw new Error(body?.error ?? `parse failed: ${px.status}`);
+          }
+          const p = (await px.json()) as { entry_id: string; intent: string };
+          update(id, { status: 'saved', entryId: p.entry_id, intent: p.intent });
+        } catch (e) {
+          update(id, { status: 'failed', error: e instanceof Error ? e.message : 'failed' });
+        }
+      })();
+    },
+    [update],
+  );
+
+  const latestSaved = captures.find((c) => c.status === 'saved' && c.entryId && c.transcript);
 
   return (
     <main className="min-h-dvh flex flex-col">
@@ -95,43 +122,58 @@ function HomeInner() {
         </Link>
       </header>
 
-      <div className="flex-1 flex flex-col items-center justify-center px-4 gap-8 max-w-xl mx-auto w-full">
+      <div className="flex-1 flex flex-col items-center justify-center px-4 gap-6 max-w-xl mx-auto w-full">
         <div className="w-full">
           <RecordButton autoLaunch={autoLaunch} onRecorded={onRecorded} />
         </div>
 
-        {queued && (
-          <p className="text-small text-ink-2 font-mono">
-            offline · queued. will sync when online.
-          </p>
+        {captures.length > 0 && (
+          <ul className="w-full space-y-1">
+            {captures.map((c) => (
+              <CaptureRow key={c.id} capture={c} />
+            ))}
+          </ul>
         )}
 
-        {transcript && entryId && (
+        {latestSaved && (
           <div className="w-full space-y-2">
-            <p className="text-micro text-ink-3 uppercase tracking-wide">transcript</p>
-            <TranscriptEditor entryId={entryId} initial={transcript} />
+            <p className="text-micro text-ink-3 uppercase tracking-wide">latest transcript</p>
+            <TranscriptEditor entryId={latestSaved.entryId!} initial={latestSaved.transcript!} />
           </div>
         )}
-
-        {transcript && !entryId && (
-          <div className="w-full space-y-2">
-            <p className="text-micro text-ink-3 uppercase tracking-wide">transcript</p>
-            <p className="text-body">{transcript}</p>
-          </div>
-        )}
-
-        {parsedIntent && (
-          <div className="w-full">
-            <p className="text-micro text-ink-3 uppercase tracking-wide mb-2">saved</p>
-            <p className="text-small text-ink-2 font-mono">
-              intent · {parsedIntent.replace(/_/g, ' ')}
-            </p>
-          </div>
-        )}
-
-        {error && <p className="text-small text-signal-red">{error}</p>}
       </div>
     </main>
+  );
+}
+
+function CaptureRow({ capture }: { capture: Capture }) {
+  const dotClass =
+    capture.status === 'failed'
+      ? 'bg-signal-red'
+      : capture.status === 'saved' || capture.status === 'queued'
+      ? 'bg-ink-2'
+      : 'bg-[#EAB308] animate-pulse';
+
+  const label = (() => {
+    switch (capture.status) {
+      case 'transcribing':
+        return 'transcribing…';
+      case 'parsing':
+        return 'parsing…';
+      case 'queued':
+        return 'queued (offline)';
+      case 'saved':
+        return `saved · ${capture.intent?.replace(/_/g, ' ') ?? 'ok'}`;
+      case 'failed':
+        return capture.error ?? 'failed';
+    }
+  })();
+
+  return (
+    <li className="flex items-center gap-3 text-small font-mono text-ink-2">
+      <span className={`inline-block w-2 h-2 rounded-full ${dotClass}`} />
+      <span className={capture.status === 'failed' ? 'text-signal-red' : ''}>{label}</span>
+    </li>
   );
 }
 

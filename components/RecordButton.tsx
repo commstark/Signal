@@ -3,15 +3,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { Circle, Square } from 'lucide-react';
 
-type State = 'idle' | 'launching' | 'recording' | 'transcribing';
+type State = 'idle' | 'launching' | 'recording';
 
 interface Props {
   autoLaunch?: boolean;
-  onRecorded: (blob: Blob, mimeType: string, durationMs: number) => Promise<void> | void;
-  onTranscribingChange?: (active: boolean) => void;
+  // Fire-and-forget; the caller drives its own status UI so the mic is
+  // free immediately after stop.
+  onRecorded: (blob: Blob, mimeType: string, durationMs: number) => void;
 }
 
-export function RecordButton({ autoLaunch = false, onRecorded, onTranscribingChange }: Props) {
+export function RecordButton({ autoLaunch = false, onRecorded }: Props) {
   const [state, setState] = useState<State>(autoLaunch ? 'launching' : 'idle');
   const [elapsedMs, setElapsedMs] = useState(0);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -43,7 +44,7 @@ export function RecordButton({ autoLaunch = false, onRecorded, onTranscribingCha
   }, [state]);
 
   async function start() {
-    if (state === 'recording' || state === 'transcribing') return;
+    if (state === 'recording') return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -54,19 +55,14 @@ export function RecordButton({ autoLaunch = false, onRecorded, onTranscribingCha
       rec.ondataavailable = (e) => {
         if (e.data.size) chunksRef.current.push(e.data);
       };
-      rec.onstop = async () => {
+      rec.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: rec.mimeType });
         stopStreams();
         const duration = Date.now() - startTimeRef.current;
-        setState('transcribing');
-        onTranscribingChange?.(true);
-        try {
-          await onRecorded(blob, rec.mimeType, duration);
-        } finally {
-          onTranscribingChange?.(false);
-          setState('idle');
-          setElapsedMs(0);
-        }
+        setState('idle');
+        setElapsedMs(0);
+        // Background — caller manages transcribe/parse status separately.
+        onRecorded(blob, rec.mimeType, duration);
       };
       recorderRef.current = rec;
       rec.start();
@@ -127,36 +123,25 @@ export function RecordButton({ autoLaunch = false, onRecorded, onTranscribingCha
     rafRef.current = requestAnimationFrame(tick);
   }
 
-  const isLaunching = state === 'launching';
   const isRecording = state === 'recording';
-  const isTranscribing = state === 'transcribing';
 
   return (
     <button
       onClick={isRecording ? stop : start}
-      disabled={isTranscribing}
       className={[
         'w-full h-16 rounded text-body font-medium flex items-center justify-center gap-3 select-none transition-colors',
-        isRecording && 'bg-signal-red text-white animate-record-pulse',
-        isTranscribing && 'bg-line text-ink-2 cursor-wait',
-        !isRecording && !isTranscribing && 'bg-[#EAB308] text-black',
-      ]
-        .filter(Boolean)
-        .join(' ')}
+        isRecording
+          ? 'bg-signal-red text-white animate-record-pulse'
+          : 'bg-[#EAB308] text-black',
+      ].join(' ')}
     >
       {isRecording ? (
         <Square size={18} fill="currentColor" />
       ) : (
-        <Circle
-          size={18}
-          fill="currentColor"
-          className={isTranscribing ? undefined : 'animate-dot-pulse'}
-        />
+        <Circle size={18} fill="currentColor" className="animate-dot-pulse" />
       )}
       <span className="font-mono">
-        {isRecording && `stop · ${formatTime(elapsedMs)}`}
-        {isTranscribing && 'transcribing…'}
-        {!isRecording && !isTranscribing && 'tap to record'}
+        {isRecording ? `stop · ${formatTime(elapsedMs)}` : 'tap to record'}
       </span>
     </button>
   );
