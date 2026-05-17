@@ -34,7 +34,7 @@ const config: Config = {
       },
       animation: {
         'record-pulse': 'recordPulse 1.2s ease-in-out infinite',
-        'launch-pulse': 'launchPulse 1.2s ease-in-out infinite',
+        'dot-pulse': 'dotPulse 1.6s ease-in-out infinite',
         'transcribing': 'transcribing 0.4s steps(4) infinite',
       },
       keyframes: {
@@ -42,9 +42,9 @@ const config: Config = {
           '0%, 100%': { filter: 'brightness(1)' },
           '50%': { filter: 'brightness(1.03)' },
         },
-        launchPulse: {
-          '0%, 100%': { filter: 'brightness(1)' },
-          '50%': { filter: 'brightness(1.05)' },
+        dotPulse: {
+          '0%, 100%': { transform: 'scale(1)', opacity: '1' },
+          '50%': { transform: 'scale(1.35)', opacity: '0.7' },
         },
         transcribing: {
           '0%': { content: '"."' },

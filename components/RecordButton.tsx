@@ -137,20 +137,26 @@ export function RecordButton({ autoLaunch = false, onRecorded, onTranscribingCha
       disabled={isTranscribing}
       className={[
         'w-full h-16 rounded text-body font-medium flex items-center justify-center gap-3 select-none transition-colors',
-        isLaunching && 'bg-[#EAB308] text-black animate-launch-pulse',
         isRecording && 'bg-signal-red text-white animate-record-pulse',
         isTranscribing && 'bg-line text-ink-2 cursor-wait',
-        !isLaunching && !isRecording && !isTranscribing && 'bg-[#EAB308] text-black',
+        !isRecording && !isTranscribing && 'bg-[#EAB308] text-black',
       ]
         .filter(Boolean)
         .join(' ')}
     >
-      {isRecording ? <Square size={18} fill="currentColor" /> : <Circle size={18} fill="currentColor" />}
+      {isRecording ? (
+        <Square size={18} fill="currentColor" />
+      ) : (
+        <Circle
+          size={18}
+          fill="currentColor"
+          className={isTranscribing ? undefined : 'animate-dot-pulse'}
+        />
+      )}
       <span className="font-mono">
-        {isLaunching && 'tap to record'}
         {isRecording && `stop · ${formatTime(elapsedMs)}`}
         {isTranscribing && 'transcribing…'}
-        {state === 'idle' && 'record'}
+        {!isRecording && !isTranscribing && 'tap to record'}
       </span>
     </button>
   );
