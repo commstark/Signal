@@ -60,7 +60,9 @@ Hard rules — these matter:
     INCLUDE in food_items (even if they're "supplements"):
       - protein shake / collagen powder (protein + calories + ~300 ml water)
       - creatine (no calories but +295 ml implicit water)
-      - psyllium husk (5 g fiber/tbsp, +water if taken with water)
+      - psyllium husk (5 g fiber/tbsp; do NOT add water — user habit is to
+        mix it into a protein shake or into a cup of water that's already
+        being counted elsewhere)
       - greens powder (calories + fiber if stated)
     EXCLUDE from food_items:
       - "morning vitamin stack", "sleep stack", "took my vitamins"
@@ -77,11 +79,14 @@ Hard rules — these matter:
       "slice of pizza + protein shake" ->
         pizza:        { calories_kcal: 300, protein_g: 12, water_ml: 0 }
         protein shake:{ calories_kcal: 120, protein_g: 24, water_ml: 300 }
-      "creatine and psyllium husk with 500 ml water" ->
-        creatine:     { water_ml: 295 }
-        psyllium:     { fiber_g: 5, water_ml: 205 }   -- 500 stated split
+      "protein shake with psyllium husk in it" (or "psyllium with my shake") ->
+        protein shake:{ calories_kcal: 120, protein_g: 24, water_ml: 300 }
+        psyllium:     { fiber_g: 5, water_ml: 0 }      -- shake water covers it
+      "creatine and a tbsp of psyllium with a cup of water" ->
+        creatine:     { water_ml: 295 }                -- the cup IS the creatine water
+        psyllium:     { fiber_g: 5, water_ml: 0 }      -- already counted via creatine
       "cup of water with my creatine" ->
-        creatine:     { water_ml: 295 }               -- the cup IS the implicit creatine water; do not double-count
+        creatine:     { water_ml: 295 }                -- the cup IS the implicit creatine water; do not double-count
 
 4. SYMPTOMS: short snake_case strings only. Examples: headache, brain_fog, bloating,
    acid_reflux, joint_pain, fatigue, anxiety, nausea, congestion. Capture only when stated.
