@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { RecordButton } from '@/components/RecordButton';
 import { TranscriptEditor } from '@/components/TranscriptEditor';
+import { AskLaterInput } from '@/components/AskLaterInput';
 import { enqueueCapture } from '@/lib/offline-queue';
 
 type CaptureStatus = 'transcribing' | 'parsing' | 'saved' | 'failed' | 'queued';
@@ -141,6 +142,10 @@ function HomeInner() {
             <TranscriptEditor entryId={latestSaved.entryId!} initial={latestSaved.transcript!} />
           </div>
         )}
+
+        <div className="w-full pt-4 border-t border-line">
+          <AskLaterInput />
+        </div>
       </div>
     </main>
   );
