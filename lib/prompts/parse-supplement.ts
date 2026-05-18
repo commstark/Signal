@@ -35,17 +35,17 @@ Rules:
 10. KNOWN USER HABIT — protein shake co-taking:
     When the transcript mentions a protein shake (any wording: "had a
     shake", "drank my protein shake", "shake with collagen", etc.), the
-    user habitually co-takes their ENTIRE day_stack at the same time.
-    Therefore: emit one log per supplement whose stack_group is
-    "day_stack", taken=true, with notes "inferred from protein shake
-    mention". This includes the protein shake itself if it's in the
-    stack as a supplement row.
-    EXCEPT: if the user explicitly says they skipped a specific
-    day_stack item (e.g. "had a shake but skipped creatine today"),
-    log that item as taken=false instead.
-    EXCEPT: if the user says they DIDN'T have their usual co-takes
-    (e.g. "just the shake, no creatine or psyllium today"), respect
-    that and log only the items they confirm.`;
+    user habitually co-takes EXACTLY these three at the same time:
+      - the protein shake itself (if it's in the stack as a supplement)
+      - collagen peptides (or "collagen")
+      - psyllium husk (or "psyllium")
+    Emit one log per matched item, taken=true, with notes "inferred
+    from protein shake mention".
+    Do NOT auto-log other day_stack items (creatine, vitamin C, etc.)
+    unless the user explicitly says they took them.
+    EXCEPT: if the user explicitly says they skipped one of the three
+    (e.g. "had a shake but skipped psyllium today"), log that item as
+    taken=false instead.`;
 
 export function supplementLogUserPrompt(
   transcript: string,
