@@ -419,6 +419,24 @@ create index if not exists api_usage_user_created_idx on api_usage (user_id, cre
 create index if not exists api_usage_service_idx       on api_usage (user_id, service, created_at desc);
 
 -- =====================================================================
+-- Open questions — quick "remember to ask this later" capture from the
+-- record screen. No answers expected — corpus seed for designing the
+-- dashboard and ask agent.
+-- =====================================================================
+create table if not exists open_questions (
+  id          uuid primary key default uuid_generate_v4(),
+  user_id     uuid not null references users(id) on delete cascade,
+  question    text not null,
+  asked_at    timestamptz not null default now(),
+  answered_at timestamptz,                -- set when the user marks it done
+  notes       text,                       -- optional follow-up
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists open_questions_user_open_idx on open_questions (user_id, asked_at desc) where answered_at is null;
+create index if not exists open_questions_user_all_idx  on open_questions (user_id, asked_at desc);
+
+-- =====================================================================
 -- Seed data — Jon's known supplement stack
 -- =====================================================================
 -- Run AFTER you've signed in via magic-link at least once (which creates
@@ -504,6 +522,7 @@ alter table summaries                enable row level security;
 alter table notifications            enable row level security;
 alter table push_subscriptions       enable row level security;
 alter table api_usage                enable row level security;
+alter table open_questions           enable row level security;
 
 -- Permissive policy for the single-user case. Replace with auth.uid() checks when going multi-user.
 -- For now: rely on service-role key from Next.js API routes, no anonymous access.
