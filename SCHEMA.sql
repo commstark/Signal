@@ -437,6 +437,26 @@ create index if not exists open_questions_user_open_idx on open_questions (user_
 create index if not exists open_questions_user_all_idx  on open_questions (user_id, asked_at desc);
 
 -- =====================================================================
+-- Personas — DB-backed system prompts for the /ask copy-prompt feature.
+-- Seeded per-user on first /ask visit (see lib/personas-seed.ts).
+-- =====================================================================
+create table if not exists personas (
+  id            uuid primary key default uuid_generate_v4(),
+  user_id       uuid not null references users(id) on delete cascade,
+  name          text not null,
+  slug          text not null,                -- stable handle for seed lookups
+  description   text,
+  system_prompt text not null,
+  active        boolean not null default true,
+  sort_order    int not null default 0,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now(),
+  unique (user_id, slug)
+);
+
+create index if not exists personas_user_active_idx on personas (user_id, active, sort_order);
+
+-- =====================================================================
 -- Seed data — Jon's known supplement stack
 -- =====================================================================
 -- Run AFTER you've signed in via magic-link at least once (which creates
@@ -523,6 +543,7 @@ alter table notifications            enable row level security;
 alter table push_subscriptions       enable row level security;
 alter table api_usage                enable row level security;
 alter table open_questions           enable row level security;
+alter table personas                 enable row level security;
 
 -- Permissive policy for the single-user case. Replace with auth.uid() checks when going multi-user.
 -- For now: rely on service-role key from Next.js API routes, no anonymous access.
