@@ -39,9 +39,14 @@ export default async function TodayPage() {
             </p>
           </div>
         </div>
-        <Link href="/settings" className="text-small text-ink-2 hover:text-ink">
-          settings
-        </Link>
+        <div className="flex items-baseline gap-4">
+          <Link href="/ask" className="text-small text-ink-2 hover:text-ink font-mono">
+            ask
+          </Link>
+          <Link href="/settings" className="text-small text-ink-2 hover:text-ink">
+            settings
+          </Link>
+        </div>
       </header>
 
       <section className="px-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
