@@ -91,3 +91,12 @@ export interface InterventionParsed {
   expected_window_days: number;
   notes: string | null;
 }
+
+export interface StackParsed {
+  items: Array<{
+    name: string;
+    dose: string | null;
+    timing: string | null;
+    stack_group: string | null;
+  }>;
+}

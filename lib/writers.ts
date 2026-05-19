@@ -325,5 +325,156 @@ export async function writeIntervention(args: {
     warnings.push(`interventions insert failed: ${error.message}`);
     return { ok: false, warnings };
   }
+
+  // For supplement-type starts, also reflect into the persistent stack so
+  // "took my day stack" picks it up next time. Best-effort: a failure here
+  // doesn't undo the intervention write.
+  if (args.parsed.type === 'supplement' && args.parsed.direction === 'start') {
+    const { name, dose, timing, stack_group } = splitSupplementName(args.parsed.name);
+    const upsertWarning = await upsertSupplement(sb, args.userId, {
+      name,
+      dose,
+      timing,
+      stack_group,
+    });
+    if (upsertWarning) warnings.push(upsertWarning);
+  }
+
   return { ok: true, warnings };
+}
+
+// Pull dose / timing out of the free-form intervention name when present
+// (the intervention prompt packs name+dose+timing into one string).
+// "Vitamin E 400 IU morning" -> { name: "Vitamin E", dose: "400 IU", timing: "morning" }
+function splitSupplementName(raw: string): {
+  name: string;
+  dose: string | null;
+  timing: string | null;
+  stack_group: string | null;
+} {
+  const timingMap: Record<string, { timing: string; group: string }> = {
+    morning: { timing: 'morning', group: 'morning_stack' },
+    breakfast: { timing: 'morning', group: 'morning_stack' },
+    lunch: { timing: 'lunch', group: 'day_stack' },
+    midday: { timing: 'lunch', group: 'day_stack' },
+    evening: { timing: 'evening', group: 'day_stack' },
+    dinner: { timing: 'evening', group: 'day_stack' },
+    night: { timing: 'night', group: 'sleep_stack' },
+    bed: { timing: 'night', group: 'sleep_stack' },
+  };
+  let timing: string | null = null;
+  let group: string | null = null;
+  let working = raw;
+  for (const [kw, val] of Object.entries(timingMap)) {
+    const re = new RegExp(`\\b(with\\s+|before\\s+|at\\s+)?${kw}\\b`, 'i');
+    if (re.test(working)) {
+      timing = val.timing;
+      group = val.group;
+      working = working.replace(re, '').trim();
+      break;
+    }
+  }
+  // Pull off a trailing dose chunk: "500mg", "5 g", "400 IU", "2.5g".
+  const doseRe = /(\d+(?:\.\d+)?\s*(?:mg|g|mcg|ug|iu|ml|tbsp|tsp))\b/i;
+  const doseMatch = working.match(doseRe);
+  const dose = doseMatch ? doseMatch[1].replace(/\s+/g, ' ').trim() : null;
+  if (doseMatch) working = working.replace(doseRe, '').trim();
+  const name = working.replace(/\s+/g, ' ').replace(/[,;]+$/, '').trim() || raw;
+  return { name, dose, timing, stack_group: group };
+}
+
+async function upsertSupplement(
+  sb: Admin,
+  userId: string,
+  item: { name: string; dose: string | null; timing: string | null; stack_group: string | null },
+): Promise<string | null> {
+  const { data: existing, error: selErr } = await sb
+    .from('supplements')
+    .select('id, dose, timing, stack_group')
+    .eq('user_id', userId)
+    .ilike('name', item.name)
+    .limit(1);
+  if (selErr) return `supplements lookup failed: ${selErr.message}`;
+
+  if (existing && existing[0]) {
+    const patch: Record<string, string> = {};
+    if (item.dose && !existing[0].dose) patch.dose = item.dose;
+    if (item.timing && !existing[0].timing) patch.timing = item.timing;
+    if (item.stack_group && !existing[0].stack_group) patch.stack_group = item.stack_group;
+    if (Object.keys(patch).length === 0) return null;
+    const { error: updErr } = await sb.from('supplements').update(patch).eq('id', existing[0].id);
+    if (updErr) return `supplements update failed: ${updErr.message}`;
+    return null;
+  }
+
+  const { error: insErr } = await sb.from('supplements').insert({
+    user_id: userId,
+    name: item.name,
+    dose: item.dose,
+    timing: item.timing,
+    stack_group: item.stack_group,
+    is_stack: true,
+    active: true,
+  });
+  if (insErr) return `supplements insert failed: ${insErr.message}`;
+  return null;
+}
+
+export async function writeStack(args: {
+  userId: string;
+  items: Array<{
+    name: string;
+    dose: string | null;
+    timing: string | null;
+    stack_group: string | null;
+  }>;
+}): Promise<{ ok: boolean; warnings: string[]; inserted: number; updated: number }> {
+  const sb = createSupabaseAdmin();
+  const warnings: string[] = [];
+  let inserted = 0;
+  let updated = 0;
+
+  for (const raw of args.items) {
+    const name = raw.name.trim();
+    if (!name) continue;
+
+    const { data: existing, error: selErr } = await sb
+      .from('supplements')
+      .select('id, dose, timing, stack_group')
+      .eq('user_id', args.userId)
+      .ilike('name', name)
+      .limit(1);
+    if (selErr) {
+      warnings.push(`lookup "${name}": ${selErr.message}`);
+      continue;
+    }
+
+    if (existing && existing[0]) {
+      const patch: Record<string, string | null> = {};
+      if (raw.dose !== null) patch.dose = raw.dose;
+      if (raw.timing !== null) patch.timing = raw.timing;
+      if (raw.stack_group !== null) patch.stack_group = raw.stack_group;
+      if (Object.keys(patch).length === 0) continue;
+      const { error: updErr } = await sb
+        .from('supplements')
+        .update(patch)
+        .eq('id', existing[0].id);
+      if (updErr) warnings.push(`update "${name}": ${updErr.message}`);
+      else updated += 1;
+    } else {
+      const { error: insErr } = await sb.from('supplements').insert({
+        user_id: args.userId,
+        name,
+        dose: raw.dose,
+        timing: raw.timing,
+        stack_group: raw.stack_group,
+        is_stack: true,
+        active: true,
+      });
+      if (insErr) warnings.push(`insert "${name}": ${insErr.message}`);
+      else inserted += 1;
+    }
+  }
+
+  return { ok: warnings.length === 0, warnings, inserted, updated };
 }

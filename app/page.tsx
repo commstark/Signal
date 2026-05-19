@@ -118,6 +118,9 @@ function HomeInner() {
   return (
     <main className="min-h-dvh flex flex-col">
       <header className="p-4 flex justify-end gap-4">
+        <Link href="/stack" className="text-small text-ink-2 hover:text-ink font-mono">
+          stack
+        </Link>
         <Link href="/ask" className="text-small text-ink-2 hover:text-ink font-mono">
           ask
         </Link>
