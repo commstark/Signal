@@ -27,6 +27,8 @@ export interface TodaySummary {
   fiber_g: number;
   water_ml: number;
   water_l: number;
+  sugar_g: number;
+  added_sugars_g: number;
   energy_avg: number | null;
   mood_avg: number | null;
   entry_count: number;
@@ -44,6 +46,8 @@ export interface NutritionBreakdownRow {
   calories_kcal: number | null;
   fiber_g: number | null;
   water_ml: number | null;
+  sugar_g: number | null;
+  added_sugars_g: number | null;
 }
 
 export async function fetchTodayNutritionBreakdown(userId: string): Promise<NutritionBreakdownRow[]> {
@@ -52,7 +56,7 @@ export async function fetchTodayNutritionBreakdown(userId: string): Promise<Nutr
 
   const { data: hls } = await sb
     .from('health_logs')
-    .select('id, occurred_at, protein_g, calories_kcal, fiber_g, water_ml')
+    .select('id, occurred_at, protein_g, calories_kcal, fiber_g, water_ml, sugar_g, added_sugars_g')
     .eq('user_id', userId)
     .gte('occurred_at', startIso)
     .lt('occurred_at', endIso)
@@ -63,7 +67,9 @@ export async function fetchTodayNutritionBreakdown(userId: string): Promise<Nutr
   const hlIds = hls.map((h) => h.id as string);
   const { data: items } = await sb
     .from('food_log_items')
-    .select('id, health_log_id, name, occurred_at, protein_g, calories_kcal, fiber_g, water_ml')
+    .select(
+      'id, health_log_id, name, occurred_at, protein_g, calories_kcal, fiber_g, water_ml, sugar_g, added_sugars_g',
+    )
     .in('health_log_id', hlIds);
 
   const itemsByHl = new Map<string, NonNullable<typeof items>>();
@@ -82,7 +88,9 @@ export async function fetchTodayNutritionBreakdown(userId: string): Promise<Nutr
         i.protein_g != null ||
         i.calories_kcal != null ||
         i.fiber_g != null ||
-        i.water_ml != null,
+        i.water_ml != null ||
+        i.sugar_g != null ||
+        i.added_sugars_g != null,
     );
 
     if (anyPerItem) {
@@ -95,6 +103,8 @@ export async function fetchTodayNutritionBreakdown(userId: string): Promise<Nutr
           calories_kcal: it.calories_kcal == null ? null : Number(it.calories_kcal),
           fiber_g: it.fiber_g == null ? null : Number(it.fiber_g),
           water_ml: it.water_ml == null ? null : Number(it.water_ml),
+          sugar_g: it.sugar_g == null ? null : Number(it.sugar_g),
+          added_sugars_g: it.added_sugars_g == null ? null : Number(it.added_sugars_g),
         });
       }
     } else {
@@ -108,6 +118,8 @@ export async function fetchTodayNutritionBreakdown(userId: string): Promise<Nutr
         calories_kcal: hl.calories_kcal == null ? null : Number(hl.calories_kcal),
         fiber_g: hl.fiber_g == null ? null : Number(hl.fiber_g),
         water_ml: hl.water_ml == null ? null : Number(hl.water_ml),
+        sugar_g: hl.sugar_g == null ? null : Number(hl.sugar_g),
+        added_sugars_g: hl.added_sugars_g == null ? null : Number(hl.added_sugars_g),
       });
     }
   }
@@ -120,7 +132,9 @@ export async function fetchTodayForUser(userId: string): Promise<TodaySummary> {
 
   const { data: hl } = await sb
     .from('health_logs')
-    .select('protein_g, calories_kcal, fiber_g, water_ml, energy_score, mood_score')
+    .select(
+      'protein_g, calories_kcal, fiber_g, water_ml, sugar_g, added_sugars_g, energy_score, mood_score',
+    )
     .eq('user_id', userId)
     .gte('occurred_at', startIso)
     .lt('occurred_at', endIso);
@@ -136,6 +150,8 @@ export async function fetchTodayForUser(userId: string): Promise<TodaySummary> {
   let calories = 0;
   let fiber = 0;
   let waterMl = 0;
+  let sugar = 0;
+  let addedSugar = 0;
   const energies: number[] = [];
   const moods: number[] = [];
   for (const r of hl ?? []) {
@@ -143,6 +159,8 @@ export async function fetchTodayForUser(userId: string): Promise<TodaySummary> {
     calories += Number(r.calories_kcal ?? 0);
     fiber += Number(r.fiber_g ?? 0);
     waterMl += Number(r.water_ml ?? 0);
+    sugar += Number(r.sugar_g ?? 0);
+    addedSugar += Number(r.added_sugars_g ?? 0);
     if (typeof r.energy_score === 'number') energies.push(r.energy_score);
     if (typeof r.mood_score === 'number') moods.push(r.mood_score);
   }
@@ -153,6 +171,8 @@ export async function fetchTodayForUser(userId: string): Promise<TodaySummary> {
     fiber_g: round(fiber),
     water_ml: Math.round(waterMl),
     water_l: round(waterMl / 1000),
+    sugar_g: round(sugar),
+    added_sugars_g: round(addedSugar),
     energy_avg: energies.length ? round(avg(energies)) : null,
     mood_avg: moods.length ? round(avg(moods)) : null,
     entry_count: count ?? 0,

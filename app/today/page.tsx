@@ -49,7 +49,7 @@ export default async function TodayPage() {
         </div>
       </header>
 
-      <section className="px-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <section className="px-4 grid grid-cols-2 sm:grid-cols-5 gap-3">
         <NutritionTile
           value={`${today.protein_g}g`}
           label="protein"
@@ -69,6 +69,14 @@ export default async function TodayPage() {
           value={`${today.fiber_g}g`}
           label="fiber"
           field="fiber_g"
+          unit="g"
+          rows={breakdown}
+        />
+        <NutritionTile
+          value={`${today.sugar_g}g`}
+          label="sugar"
+          meta={today.added_sugars_g > 0 ? `${today.added_sugars_g}g added` : undefined}
+          field="sugar_g"
           unit="g"
           rows={breakdown}
         />

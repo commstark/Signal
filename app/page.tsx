@@ -119,7 +119,7 @@ function HomeInner() {
     <main className="min-h-dvh flex flex-col">
       <header className="p-4 flex justify-end gap-4">
         <Link href="/stack" className="text-small text-ink-2 hover:text-ink font-mono">
-          stack
+          account
         </Link>
         <Link href="/ask" className="text-small text-ink-2 hover:text-ink font-mono">
           ask
@@ -133,6 +133,8 @@ function HomeInner() {
         <div className="w-full">
           <RecordButton autoLaunch={autoLaunch} onRecorded={onRecorded} />
         </div>
+
+        {captures.length === 0 && !latestSaved && <ExampleHints />}
 
         {captures.length > 0 && (
           <ul className="w-full space-y-1">
@@ -154,6 +156,29 @@ function HomeInner() {
         </div>
       </div>
     </main>
+  );
+}
+
+const EXAMPLES: Array<{ label: string; quote: string }> = [
+  { label: 'food', quote: '"had a turkey sandwich and a black coffee."' },
+  { label: 'workout', quote: '"deadlifts 5x5 at 315, then 20 min easy bike."' },
+  { label: 'update stack', quote: '"from now on I take 400 IU vitamin E in the morning."' },
+  { label: 'update prefs', quote: '"for me, a serving of meat is half a pound."' },
+];
+
+function ExampleHints() {
+  return (
+    <div className="w-full space-y-2">
+      <p className="text-micro text-ink-3 uppercase tracking-wide font-mono">try saying</p>
+      <ul className="space-y-1.5">
+        {EXAMPLES.map((ex) => (
+          <li key={ex.label} className="text-small leading-snug">
+            <span className="font-mono text-ink-3">{ex.label}:</span>{' '}
+            <span className="text-ink-2">{ex.quote}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

@@ -7,6 +7,7 @@ import {
   parseWorkoutLog,
   parseSupplementLog,
   parseIntervention,
+  parsePreference,
   type ParseUsage,
 } from '@/lib/parse';
 import { recordUsage } from '@/lib/usage';
@@ -15,13 +16,16 @@ import {
   writeWorkoutLog,
   writeSupplementLog,
   writeIntervention,
+  writePreferences,
   type WriteResult,
 } from '@/lib/writers';
+import { loadUserCalibrations } from '@/lib/preferences';
 import type {
   HealthLogParsed,
   WorkoutLogParsed,
   SupplementLogParsed,
   InterventionParsed,
+  PreferenceParsed,
 } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -137,7 +141,8 @@ export async function POST(req: NextRequest) {
 
   if (intent === 'health_log' || intent === 'mixed' || intent === 'free_note') {
     try {
-      const { value, usage } = await parseHealthLog(transcript, occurredAt);
+      const calibrations = await loadUserCalibrations(user.id);
+      const { value, usage } = await parseHealthLog(transcript, occurredAt, calibrations);
       usageTotals.push(usage);
       extractedFacts.health = value;
       await recordUsage({
@@ -224,6 +229,40 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       console.error('supplement parse error', err);
       warnings.push(`supplement parse failed: ${errorMessage(err)}`);
+    }
+  }
+
+  if (intent === 'preference_set' || intent === 'mixed') {
+    try {
+      const { value, usage } = await parsePreference(transcript);
+      usageTotals.push(usage);
+      extractedFacts.preference = value;
+      await recordUsage({
+        userId: user.id,
+        service: 'anthropic',
+        model: usage.model,
+        endpoint: 'parse-preference',
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        costUsd: usage.costUsd,
+        entryId,
+      });
+      const parsed = value as PreferenceParsed;
+      if ((parsed.items ?? []).length > 0) {
+        const result = await writePreferences({
+          userId: user.id,
+          parsed,
+          source: 'voice',
+        });
+        sectionResults.push({
+          section: 'preference',
+          result: { ok: result.ok, warnings: result.warnings },
+        });
+        warnings.push(...result.warnings);
+      }
+    } catch (err) {
+      console.error('preference parse error', err);
+      warnings.push(`preference parse failed: ${errorMessage(err)}`);
     }
   }
 

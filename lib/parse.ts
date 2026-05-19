@@ -5,7 +5,8 @@ import { HEALTH_LOG_SYSTEM, healthLogUserPrompt } from './prompts/parse-health';
 import { WORKOUT_LOG_SYSTEM, workoutLogUserPrompt } from './prompts/parse-workout';
 import { SUPPLEMENT_LOG_SYSTEM, supplementLogUserPrompt } from './prompts/parse-supplement';
 import { INTERVENTION_SYSTEM, interventionUserPrompt } from './prompts/parse-intervention';
-import { STACK_PARSE_SYSTEM, stackParseUserPrompt } from './prompts/parse-stack';
+import { PREFERENCE_PARSE_SYSTEM, preferenceParseUserPrompt } from './prompts/parse-preference';
+import type { UserCalibrations } from './types';
 
 export interface ParseUsage {
   model: string;
@@ -63,10 +64,14 @@ export async function classifyIntent(transcript: string): Promise<IntentResult> 
   return { intent: value.intent, reasoning: value.reasoning, usage };
 }
 
-export async function parseHealthLog(transcript: string, occurredAtIso: string) {
+export async function parseHealthLog(
+  transcript: string,
+  occurredAtIso: string,
+  calibrations?: UserCalibrations,
+) {
   return callHaiku({
     system: HEALTH_LOG_SYSTEM,
-    user: healthLogUserPrompt(transcript, occurredAtIso),
+    user: healthLogUserPrompt(transcript, occurredAtIso, calibrations),
     maxTokens: 1024,
   });
 }
@@ -99,10 +104,10 @@ export async function parseIntervention(transcript: string, direction: 'start' |
   });
 }
 
-export async function parseStack(transcript: string) {
+export async function parsePreference(transcript: string) {
   return callHaiku({
-    system: STACK_PARSE_SYSTEM,
-    user: stackParseUserPrompt(transcript),
-    maxTokens: 1024,
+    system: PREFERENCE_PARSE_SYSTEM,
+    user: preferenceParseUserPrompt(transcript),
+    maxTokens: 512,
   });
 }

@@ -87,6 +87,7 @@ create table if not exists health_logs (
   calories_kcal         numeric(7,1),
   fiber_g               numeric(6,2),
   added_sugars_g        numeric(6,2),
+  sugar_g               numeric(6,2),                  -- total sugars (natural + added)
   saturated_fat_present boolean,
   carb_timing           text,                                -- 'morning' | 'midday' | 'evening' | 'late_night'
   ultra_processed       boolean,
@@ -133,6 +134,8 @@ create table if not exists food_log_items (
   calories_kcal   numeric(7,1),
   fiber_g         numeric(6,2),
   water_ml        numeric(7,1),
+  sugar_g         numeric(6,2),
+  added_sugars_g  numeric(6,2),
   occurred_at     timestamptz not null,
   created_at      timestamptz not null default now()
 );
@@ -456,6 +459,23 @@ create table if not exists personas (
 
 create index if not exists personas_user_active_idx on personas (user_id, active, sort_order);
 
+-- Per-user calibrations consulted by parser prompts.
+-- "for me, a serving of meat is half a pound" -> { key: 'meat_serving_g', value_num: 227, unit: 'g' }.
+create table if not exists user_preferences (
+  id          uuid primary key default uuid_generate_v4(),
+  user_id     uuid not null references users(id) on delete cascade,
+  key         text not null,
+  value_num   numeric,
+  value_text  text,
+  unit        text,
+  notes       text,
+  source      text not null default 'voice',
+  updated_at  timestamptz not null default now(),
+  unique (user_id, key)
+);
+
+create index if not exists user_preferences_user_idx on user_preferences (user_id);
+
 -- =====================================================================
 -- Seed data — Jon's known supplement stack
 -- =====================================================================
@@ -544,6 +564,7 @@ alter table push_subscriptions       enable row level security;
 alter table api_usage                enable row level security;
 alter table open_questions           enable row level security;
 alter table personas                 enable row level security;
+alter table user_preferences         enable row level security;
 
 -- Permissive policy for the single-user case. Replace with auth.uid() checks when going multi-user.
 -- For now: rely on service-role key from Next.js API routes, no anonymous access.

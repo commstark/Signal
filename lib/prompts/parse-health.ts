@@ -11,13 +11,16 @@ Return JSON only. Schema:
       "protein_g": number | null,
       "calories_kcal": number | null,
       "fiber_g": number | null,
-      "water_ml": number | null
+      "water_ml": number | null,
+      "sugar_g": number | null,
+      "added_sugars_g": number | null
     }
   ],
   "estimated_nutrition": {
     "calories_kcal": number | null,
     "protein_g": number | null,
     "fiber_g": number | null,
+    "sugar_g": number | null,
     "added_sugars_g": number | null,
     "saturated_fat_present": boolean | null,
     "carb_timing": "morning" | "midday" | "evening" | "late_night" | null,
@@ -34,6 +37,13 @@ Return JSON only. Schema:
 }
 
 Hard rules — these matter:
+
+0. USER CALIBRATIONS. The user message MAY begin with a "USER CALIBRATIONS" block
+   listing per-user numeric overrides (e.g. meat_serving_g = 227, cup_volume_ml = 295,
+   protein_shake_g = 30). When present, USE those values in place of the defaults
+   below. A user with meat_serving_g = 227 who says "I had a serving of steak"
+   should get ~227g of meat in protein/calorie attribution. A user with
+   protein_shake_g = 30 should get 30g protein per shake (not the default 24).
 
 1. SCORES (mood/energy/concentration, 1-10): fill ONLY when the user states or unambiguously implies a number.
    "felt good" -> descriptor "good", score null. NEVER invent a 7.
@@ -70,7 +80,7 @@ Hard rules — these matter:
       - anything with zero attributable calories / protein / fiber / water
 
 3b. PER-ITEM NUTRIENTS. Attribute each item's share into its row:
-      protein_g, calories_kcal, fiber_g, water_ml.
+      protein_g, calories_kcal, fiber_g, water_ml, sugar_g, added_sugars_g.
     The sums across food_items MUST match the entry-level
     estimated_nutrition totals and water_ml. If a nutrient can't be
     attributed to a specific item (e.g. a sauce shared across the plate),
@@ -87,6 +97,20 @@ Hard rules — these matter:
         psyllium:     { fiber_g: 5, water_ml: 0 }      -- already counted via creatine
       "cup of water with my creatine" ->
         creatine:     { water_ml: 295 }                -- the cup IS the implicit creatine water; do not double-count
+
+3c. SUGAR. Always populate sugar_g (total sugars: natural + added) for any
+    food that contains sugar. added_sugars_g is the SUBSET that's refined /
+    table sugar / syrups / sweeteners — not naturally occurring fructose
+    or lactose. Both default to 0 (not null) for clearly non-sugar items
+    like plain meat / eggs / olive oil.
+    Examples:
+      "a banana"               -> sugar_g: 14,  added_sugars_g: 0
+      "a glass of orange juice"-> sugar_g: 22,  added_sugars_g: 0
+      "a can of coke"          -> sugar_g: 39,  added_sugars_g: 39
+      "yogurt with honey"      -> sugar_g: 18,  added_sugars_g: 12  (honey only)
+      "8oz grilled chicken"    -> sugar_g: 0,   added_sugars_g: 0
+    If you genuinely don't know (highly mixed dish), set both null and
+    confidence "low".
 
 4. SYMPTOMS: short snake_case strings only. Examples: headache, brain_fog, bloating,
    acid_reflux, joint_pain, fatigue, anxiety, nausea, congestion. Capture only when stated.
@@ -125,6 +149,31 @@ Hard rules — these matter:
 
 7. Use null over guessing. Empty arrays are valid.`;
 
-export function healthLogUserPrompt(transcript: string, occurredAtIso: string): string {
-  return `Transcript:\n"""${transcript}"""\n\nOccurred at (ISO, user timezone PST): ${occurredAtIso}\n\nReturn JSON only.`;
+export function healthLogUserPrompt(
+  transcript: string,
+  occurredAtIso: string,
+  calibrations?: { [key: string]: { value_num: number | null; value_text: string | null; unit: string | null } },
+): string {
+  const calibBlock = renderCalibrations(calibrations);
+  return `${calibBlock}Transcript:\n"""${transcript}"""\n\nOccurred at (ISO, user timezone PST): ${occurredAtIso}\n\nReturn JSON only.`;
+}
+
+// Per-user overrides applied on top of the system-prompt defaults.
+// Keep this dynamic chunk in the USER message so the system prompt
+// stays static and cache-friendly.
+function renderCalibrations(
+  calibrations?: { [key: string]: { value_num: number | null; value_text: string | null; unit: string | null } },
+): string {
+  if (!calibrations) return '';
+  const entries = Object.entries(calibrations);
+  if (entries.length === 0) return '';
+  const lines = entries
+    .map(([key, v]) => {
+      if (v.value_num != null) return `  ${key} = ${v.value_num}${v.unit ? ' ' + v.unit : ''}`;
+      if (v.value_text) return `  ${key} = ${v.value_text}`;
+      return null;
+    })
+    .filter((l): l is string => l !== null);
+  if (lines.length === 0) return '';
+  return `USER CALIBRATIONS (override the system prompt defaults for THIS user when applicable):\n${lines.join('\n')}\n\n`;
 }

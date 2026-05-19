@@ -12,11 +12,14 @@ export interface HealthLogParsed {
     calories_kcal: number | null;
     fiber_g: number | null;
     water_ml: number | null;
+    sugar_g: number | null;
+    added_sugars_g: number | null;
   }>;
   estimated_nutrition: {
     calories_kcal: number | null;
     protein_g: number | null;
     fiber_g: number | null;
+    sugar_g: number | null;
     added_sugars_g: number | null;
     saturated_fat_present: boolean | null;
     carb_timing: 'morning' | 'midday' | 'evening' | 'late_night' | null;
@@ -92,11 +95,17 @@ export interface InterventionParsed {
   notes: string | null;
 }
 
-export interface StackParsed {
+export interface PreferenceParsed {
   items: Array<{
-    name: string;
-    dose: string | null;
-    timing: string | null;
-    stack_group: string | null;
+    key: string;
+    value_num: number | null;
+    value_text: string | null;
+    unit: string | null;
+    notes: string;
   }>;
+}
+
+export interface UserCalibrations {
+  // key -> { value_num, unit, notes }. Used for prompt injection.
+  [key: string]: { value_num: number | null; value_text: string | null; unit: string | null };
 }
