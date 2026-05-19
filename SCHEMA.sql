@@ -456,6 +456,23 @@ create table if not exists personas (
 
 create index if not exists personas_user_active_idx on personas (user_id, active, sort_order);
 
+-- Per-user calibrations consulted by parser prompts.
+-- "for me, a serving of meat is half a pound" -> { key: 'meat_serving_g', value_num: 227, unit: 'g' }.
+create table if not exists user_preferences (
+  id          uuid primary key default uuid_generate_v4(),
+  user_id     uuid not null references users(id) on delete cascade,
+  key         text not null,
+  value_num   numeric,
+  value_text  text,
+  unit        text,
+  notes       text,
+  source      text not null default 'voice',
+  updated_at  timestamptz not null default now(),
+  unique (user_id, key)
+);
+
+create index if not exists user_preferences_user_idx on user_preferences (user_id);
+
 -- =====================================================================
 -- Seed data — Jon's known supplement stack
 -- =====================================================================
@@ -544,6 +561,7 @@ alter table push_subscriptions       enable row level security;
 alter table api_usage                enable row level security;
 alter table open_questions           enable row level security;
 alter table personas                 enable row level security;
+alter table user_preferences         enable row level security;
 
 -- Permissive policy for the single-user case. Replace with auth.uid() checks when going multi-user.
 -- For now: rely on service-role key from Next.js API routes, no anonymous access.

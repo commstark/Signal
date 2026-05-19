@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { RecordButton } from '@/components/RecordButton';
 
 interface StackItem {
   id: string;
@@ -13,21 +12,16 @@ interface StackItem {
   active: boolean;
 }
 
-interface ProposedItem {
-  name: string;
-  dose: string | null;
-  timing: string | null;
-  stack_group: string | null;
+interface PrefItem {
+  id: string;
+  key: string;
+  value_num: number | null;
+  value_text: string | null;
+  unit: string | null;
+  notes: string | null;
+  source: string;
+  updated_at: string;
 }
-
-type FlowState =
-  | { kind: 'idle' }
-  | { kind: 'transcribing' }
-  | { kind: 'parsing' }
-  | { kind: 'review'; proposed: ProposedItem[] }
-  | { kind: 'saving' }
-  | { kind: 'done'; inserted: number; updated: number }
-  | { kind: 'error'; message: string };
 
 const GROUP_OPTIONS: Array<{ value: string; label: string }> = [
   { value: '', label: '—' },
@@ -36,60 +30,22 @@ const GROUP_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'sleep_stack', label: 'sleep' },
 ];
 
-export default function StackPage() {
+export default function SettingsPage() {
   const [stack, setStack] = useState<StackItem[] | null>(null);
-  const [flow, setFlow] = useState<FlowState>({ kind: 'idle' });
+  const [prefs, setPrefs] = useState<PrefItem[] | null>(null);
 
-  const loadStack = useCallback(async () => {
-    try {
-      const r = await fetch('/api/stack/list');
-      if (!r.ok) throw new Error(`load failed: ${r.status}`);
-      const j = (await r.json()) as { items: StackItem[] };
-      setStack(j.items);
-    } catch (e) {
-      setStack([]);
-      console.error(e);
-    }
+  const loadAll = useCallback(async () => {
+    const [s, p] = await Promise.all([
+      fetch('/api/stack/list').then((r) => r.json()).catch(() => ({ items: [] })),
+      fetch('/api/preferences/list').then((r) => r.json()).catch(() => ({ items: [] })),
+    ]);
+    setStack((s.items ?? []) as StackItem[]);
+    setPrefs((p.items ?? []) as PrefItem[]);
   }, []);
 
   useEffect(() => {
-    loadStack();
-  }, [loadStack]);
-
-  const onRecorded = useCallback(async (blob: Blob, mimeType: string) => {
-    setFlow({ kind: 'transcribing' });
-    try {
-      const form = new FormData();
-      form.append(
-        'audio',
-        new File([blob], `stack.${extFor(mimeType)}`, { type: mimeType }),
-      );
-      const tx = await fetch('/api/transcribe', { method: 'POST', body: form });
-      if (!tx.ok) throw new Error(`transcribe failed: ${tx.status}`);
-      const t = (await tx.json()) as { transcript: string };
-
-      setFlow({ kind: 'parsing' });
-      const px = await fetch('/api/stack/parse', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript: t.transcript }),
-      });
-      if (!px.ok) {
-        const body = await px.json().catch(() => null);
-        throw new Error(body?.error ?? `parse failed: ${px.status}`);
-      }
-      const p = (await px.json()) as { items: ProposedItem[] };
-      if (p.items.length === 0) {
-        setFlow({ kind: 'error', message: 'no supplements found in that recording.' });
-        return;
-      }
-      setFlow({ kind: 'review', proposed: p.items });
-    } catch (e) {
-      setFlow({ kind: 'error', message: e instanceof Error ? e.message : 'something went wrong' });
-    }
-  }, []);
-
-  const isEmpty = stack !== null && stack.length === 0;
+    loadAll();
+  }, [loadAll]);
 
   return (
     <main className="min-h-dvh flex flex-col">
@@ -97,242 +53,449 @@ export default function StackPage() {
         <Link href="/" className="text-small text-ink-2 hover:text-ink font-mono">
           ← back
         </Link>
-        <h1 className="text-small font-mono text-ink-2">stack</h1>
+        <h1 className="text-small font-mono text-ink-2">your account</h1>
         <span className="w-12" />
       </header>
 
-      <div className="flex-1 px-4 max-w-xl mx-auto w-full space-y-6 pb-12">
-        {flow.kind === 'review' ? (
-          <ReviewScreen
-            proposed={flow.proposed}
-            onCancel={() => setFlow({ kind: 'idle' })}
-            onSave={async (rows) => {
-              setFlow({ kind: 'saving' });
-              try {
-                const r = await fetch('/api/stack/commit', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ items: rows }),
-                });
-                if (!r.ok) {
-                  const body = await r.json().catch(() => null);
-                  throw new Error(body?.error ?? `save failed: ${r.status}`);
-                }
-                const j = (await r.json()) as { inserted: number; updated: number };
-                setFlow({ kind: 'done', inserted: j.inserted, updated: j.updated });
-                await loadStack();
-              } catch (e) {
-                setFlow({
-                  kind: 'error',
-                  message: e instanceof Error ? e.message : 'save failed',
-                });
-              }
-            }}
-          />
-        ) : (
-          <>
-            {isEmpty ? (
-              <EmptyState />
-            ) : stack === null ? (
-              <p className="text-small text-ink-3 font-mono">loading…</p>
-            ) : (
-              <CurrentStack items={stack} />
-            )}
+      <div className="flex-1 px-4 max-w-xl mx-auto w-full space-y-10 pb-12">
+        <p className="text-small text-ink-2">
+          add or edit anything below by tapping a row. to add by voice, go back home and speak naturally — e.g. <span className="font-mono">&quot;from now on I take 400 IU vitamin E in the morning&quot;</span>.
+        </p>
 
-            <div className="space-y-2">
-              {(flow.kind === 'idle' || flow.kind === 'done' || flow.kind === 'error') && (
-                <RecordButton onRecorded={onRecorded} />
-              )}
-              {flow.kind === 'transcribing' && <StatusLine label="transcribing…" />}
-              {flow.kind === 'parsing' && <StatusLine label="extracting supplements…" />}
-              {flow.kind === 'saving' && <StatusLine label="saving…" />}
-              {flow.kind === 'done' && (
-                <p className="text-small font-mono text-ink-2">
-                  saved · {flow.inserted} new, {flow.updated} updated
-                </p>
-              )}
-              {flow.kind === 'error' && (
-                <p className="text-small font-mono text-signal-red">{flow.message}</p>
-              )}
-              <p className="text-micro text-ink-3 font-mono">
-                {isEmpty
-                  ? 'say each supplement with dose and timing. e.g. "I take protein shake every morning, 5g creatine, 600mg magnesium glycinate before bed."'
-                  : 'speak any additions or changes. e.g. "adding vitamin E 400 IU to my morning stack."'}
-              </p>
-            </div>
-          </>
-        )}
+        <StackSection items={stack} reload={loadAll} />
+        <PrefsSection items={prefs} reload={loadAll} />
       </div>
     </main>
   );
 }
 
-function EmptyState() {
-  return (
-    <div className="pt-6 pb-2 space-y-2">
-      <h2 className="text-h2">record your vitamin stack</h2>
-      <p className="text-body text-ink-2">
-        tap below and list everything you take. include dose and timing if you can.
-      </p>
-    </div>
-  );
-}
-
-function CurrentStack({ items }: { items: StackItem[] }) {
-  const grouped = groupByStack(items);
-  return (
-    <div className="space-y-5 pt-2">
-      <h2 className="text-h2">your stack</h2>
-      {Object.entries(grouped).map(([group, rows]) => (
-        <section key={group} className="space-y-2">
-          <p className="text-micro text-ink-3 uppercase tracking-wide font-mono">
-            {labelForGroup(group)}
-          </p>
-          <ul className="space-y-1">
-            {rows.map((r) => (
-              <li key={r.id} className="flex items-baseline justify-between text-body">
-                <span>{r.name}</span>
-                <span className="text-small text-ink-2 font-mono">
-                  {[r.dose, r.timing].filter(Boolean).join(' · ') || '—'}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
-    </div>
-  );
-}
-
-function ReviewScreen({
-  proposed,
-  onSave,
-  onCancel,
+function StackSection({
+  items,
+  reload,
 }: {
-  proposed: ProposedItem[];
-  onSave: (items: ProposedItem[]) => void;
-  onCancel: () => void;
+  items: StackItem[] | null;
+  reload: () => Promise<void>;
 }) {
-  const [rows, setRows] = useState<ProposedItem[]>(proposed);
-
-  function update(i: number, patch: Partial<ProposedItem>) {
-    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
-  }
-
-  function remove(i: number) {
-    setRows((prev) => prev.filter((_, idx) => idx !== i));
-  }
+  const [adding, setAdding] = useState(false);
 
   return (
-    <div className="space-y-4 pt-2">
-      <div>
-        <h2 className="text-h2">confirm</h2>
-        <p className="text-small text-ink-2">edit any row before saving. swipe-remove with ×.</p>
+    <section className="space-y-3">
+      <div className="flex items-baseline justify-between">
+        <h2 className="text-h2">vitamin stack</h2>
+        <button
+          onClick={() => setAdding(true)}
+          className="text-small font-mono text-ink-2 hover:text-ink"
+        >
+          + add
+        </button>
       </div>
 
-      <ul className="space-y-3">
-        {rows.map((r, i) => (
-          <li key={i} className="space-y-2 border border-line rounded p-3">
-            <div className="flex items-center gap-2">
-              <input
-                value={r.name}
-                onChange={(e) => update(i, { name: e.target.value })}
-                placeholder="name"
-                className="flex-1 bg-transparent border-b border-line text-body focus:border-ink focus:outline-none py-1"
-              />
-              <button
-                type="button"
-                onClick={() => remove(i)}
-                className="text-ink-3 hover:text-signal-red font-mono px-2"
-                aria-label="remove"
-              >
-                ×
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                value={r.dose ?? ''}
-                onChange={(e) => update(i, { dose: e.target.value || null })}
-                placeholder="dose (e.g. 500 mg)"
-                className="bg-transparent border border-line rounded px-2 py-1 text-small font-mono focus:border-ink focus:outline-none"
-              />
-              <input
-                value={r.timing ?? ''}
-                onChange={(e) => update(i, { timing: e.target.value || null })}
-                placeholder="timing"
-                className="bg-transparent border border-line rounded px-2 py-1 text-small font-mono focus:border-ink focus:outline-none"
-              />
-            </div>
-            <select
-              value={r.stack_group ?? ''}
-              onChange={(e) => update(i, { stack_group: e.target.value || null })}
-              className="w-full bg-transparent border border-line rounded px-2 py-1 text-small font-mono focus:border-ink focus:outline-none"
-            >
-              {GROUP_OPTIONS.map((g) => (
-                <option key={g.value} value={g.value}>
-                  {g.label}
-                </option>
-              ))}
-            </select>
-          </li>
-        ))}
-      </ul>
+      {items === null ? (
+        <p className="text-small font-mono text-ink-3">loading…</p>
+      ) : items.length === 0 && !adding ? (
+        <p className="text-small text-ink-2">
+          nothing here yet. say something like <span className="font-mono">&quot;from now on I take 5g creatine in the morning&quot;</span> on the home page.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {items.map((it) => (
+            <StackRow key={it.id} item={it} reload={reload} />
+          ))}
+        </ul>
+      )}
 
-      <div className="flex gap-3">
+      {adding && (
+        <StackRow
+          mode="new"
+          item={{
+            id: '',
+            name: '',
+            dose: null,
+            timing: null,
+            stack_group: null,
+            active: true,
+          }}
+          reload={async () => {
+            setAdding(false);
+            await reload();
+          }}
+          onCancel={() => setAdding(false)}
+        />
+      )}
+    </section>
+  );
+}
+
+function StackRow({
+  item,
+  reload,
+  mode = 'existing',
+  onCancel,
+}: {
+  item: StackItem;
+  reload: () => Promise<void>;
+  mode?: 'existing' | 'new';
+  onCancel?: () => void;
+}) {
+  const [editing, setEditing] = useState(mode === 'new');
+  const [draft, setDraft] = useState<StackItem>(item);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function save() {
+    if (!draft.name.trim()) {
+      setErr('name required');
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await fetch('/api/stack/upsert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: mode === 'existing' ? draft.id : undefined,
+          name: draft.name,
+          dose: draft.dose,
+          timing: draft.timing,
+          stack_group: draft.stack_group,
+        }),
+      });
+      if (!r.ok) {
+        const b = await r.json().catch(() => null);
+        throw new Error(b?.error ?? `save failed: ${r.status}`);
+      }
+      setEditing(false);
+      await reload();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'save failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    if (mode === 'new') {
+      onCancel?.();
+      return;
+    }
+    if (!confirm(`remove ${item.name} from your stack?`)) return;
+    setBusy(true);
+    try {
+      await fetch('/api/stack/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id }),
+      });
+      await reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <li
+        onClick={() => setEditing(true)}
+        className="flex items-baseline justify-between text-body cursor-pointer hover:bg-line/20 -mx-2 px-2 py-1 rounded"
+      >
+        <span>{item.name}</span>
+        <span className="text-small text-ink-2 font-mono">
+          {[item.dose, item.timing, labelForGroup(item.stack_group)]
+            .filter(Boolean)
+            .join(' · ') || 'tap to edit'}
+        </span>
+      </li>
+    );
+  }
+
+  return (
+    <li className="space-y-2 border border-line rounded p-3">
+      <input
+        value={draft.name}
+        onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+        placeholder="name"
+        className="w-full bg-transparent border-b border-line text-body focus:border-ink focus:outline-none py-1"
+      />
+      <div className="grid grid-cols-2 gap-2">
+        <input
+          value={draft.dose ?? ''}
+          onChange={(e) => setDraft({ ...draft, dose: e.target.value || null })}
+          placeholder="dose (e.g. 500 mg)"
+          className="bg-transparent border border-line rounded px-2 py-1 text-small font-mono focus:border-ink focus:outline-none"
+        />
+        <input
+          value={draft.timing ?? ''}
+          onChange={(e) => setDraft({ ...draft, timing: e.target.value || null })}
+          placeholder="timing"
+          className="bg-transparent border border-line rounded px-2 py-1 text-small font-mono focus:border-ink focus:outline-none"
+        />
+      </div>
+      <select
+        value={draft.stack_group ?? ''}
+        onChange={(e) => setDraft({ ...draft, stack_group: e.target.value || null })}
+        className="w-full bg-transparent border border-line rounded px-2 py-1 text-small font-mono focus:border-ink focus:outline-none"
+      >
+        {GROUP_OPTIONS.map((g) => (
+          <option key={g.value} value={g.value}>
+            {g.label}
+          </option>
+        ))}
+      </select>
+      {err && <p className="text-small text-signal-red font-mono">{err}</p>}
+      <div className="flex gap-2 pt-1">
         <button
-          onClick={onCancel}
-          className="flex-1 h-11 border border-line rounded text-body font-mono"
+          onClick={save}
+          disabled={busy}
+          className="flex-1 h-10 bg-accent text-accent-fg rounded text-small font-medium font-mono disabled:opacity-60"
+        >
+          save
+        </button>
+        <button
+          onClick={() => {
+            setDraft(item);
+            setEditing(false);
+            onCancel?.();
+          }}
+          disabled={busy}
+          className="h-10 px-4 border border-line rounded text-small font-mono"
         >
           cancel
         </button>
+        {mode === 'existing' && (
+          <button
+            onClick={remove}
+            disabled={busy}
+            className="h-10 px-4 border border-line rounded text-small font-mono text-signal-red"
+          >
+            remove
+          </button>
+        )}
+      </div>
+    </li>
+  );
+}
+
+function PrefsSection({
+  items,
+  reload,
+}: {
+  items: PrefItem[] | null;
+  reload: () => Promise<void>;
+}) {
+  const [adding, setAdding] = useState(false);
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-baseline justify-between">
+        <h2 className="text-h2">preferences</h2>
         <button
-          onClick={() => onSave(rows)}
-          disabled={rows.length === 0}
-          className="flex-1 h-11 bg-accent text-accent-fg rounded text-body font-medium disabled:opacity-60"
+          onClick={() => setAdding(true)}
+          className="text-small font-mono text-ink-2 hover:text-ink"
         >
-          save {rows.length} item{rows.length === 1 ? '' : 's'}
+          + add
         </button>
       </div>
-    </div>
+      <p className="text-small text-ink-2">
+        per-you calibrations the parser uses. e.g. <span className="font-mono">meat_serving_g = 227</span> means &quot;a serving of meat&quot; counts as 227 g for your logs.
+      </p>
+
+      {items === null ? (
+        <p className="text-small font-mono text-ink-3">loading…</p>
+      ) : items.length === 0 && !adding ? (
+        <p className="text-small text-ink-2">
+          nothing here yet. say something like <span className="font-mono">&quot;from now on a serving of meat is half a pound for me&quot;</span> on the home page.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {items.map((it) => (
+            <PrefRow key={it.id} item={it} reload={reload} />
+          ))}
+        </ul>
+      )}
+
+      {adding && (
+        <PrefRow
+          mode="new"
+          item={{
+            id: '',
+            key: '',
+            value_num: null,
+            value_text: null,
+            unit: null,
+            notes: null,
+            source: 'manual',
+            updated_at: '',
+          }}
+          reload={async () => {
+            setAdding(false);
+            await reload();
+          }}
+          onCancel={() => setAdding(false)}
+        />
+      )}
+    </section>
   );
 }
 
-function StatusLine({ label }: { label: string }) {
+function PrefRow({
+  item,
+  reload,
+  mode = 'existing',
+  onCancel,
+}: {
+  item: PrefItem;
+  reload: () => Promise<void>;
+  mode?: 'existing' | 'new';
+  onCancel?: () => void;
+}) {
+  const [editing, setEditing] = useState(mode === 'new');
+  const [draft, setDraft] = useState<PrefItem>(item);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function save() {
+    if (!draft.key.trim()) {
+      setErr('key required');
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await fetch('/api/preferences/upsert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: [
+            {
+              key: draft.key.trim(),
+              value_num: draft.value_num,
+              value_text: draft.value_text,
+              unit: draft.unit,
+              notes: draft.notes ?? '',
+            },
+          ],
+        }),
+      });
+      if (!r.ok) {
+        const b = await r.json().catch(() => null);
+        throw new Error(b?.error ?? `save failed: ${r.status}`);
+      }
+      setEditing(false);
+      await reload();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'save failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    if (mode === 'new') {
+      onCancel?.();
+      return;
+    }
+    if (!confirm(`remove preference "${item.key}"?`)) return;
+    setBusy(true);
+    try {
+      await fetch('/api/preferences/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: item.key }),
+      });
+      await reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <li
+        onClick={() => setEditing(true)}
+        className="flex items-baseline justify-between text-body cursor-pointer hover:bg-line/20 -mx-2 px-2 py-1 rounded"
+      >
+        <span className="font-mono text-small">{item.key}</span>
+        <span className="text-small text-ink-2 font-mono">
+          {item.value_num != null
+            ? `${item.value_num}${item.unit ? ' ' + item.unit : ''}`
+            : item.value_text || 'tap to edit'}
+        </span>
+      </li>
+    );
+  }
+
   return (
-    <div className="flex items-center gap-3 text-small font-mono text-ink-2">
-      <span className="inline-block w-2 h-2 rounded-full bg-[#EAB308] animate-pulse" />
-      <span>{label}</span>
-    </div>
+    <li className="space-y-2 border border-line rounded p-3">
+      <input
+        value={draft.key}
+        onChange={(e) => setDraft({ ...draft, key: e.target.value })}
+        placeholder="key (e.g. meat_serving_g)"
+        className="w-full bg-transparent border-b border-line text-body font-mono focus:border-ink focus:outline-none py-1"
+      />
+      <div className="grid grid-cols-2 gap-2">
+        <input
+          inputMode="decimal"
+          value={draft.value_num ?? ''}
+          onChange={(e) => {
+            const v = e.target.value;
+            const n = v === '' ? null : Number(v);
+            setDraft({ ...draft, value_num: Number.isFinite(n as number) ? (n as number) : null });
+          }}
+          placeholder="value (number)"
+          className="bg-transparent border border-line rounded px-2 py-1 text-small font-mono focus:border-ink focus:outline-none"
+        />
+        <input
+          value={draft.unit ?? ''}
+          onChange={(e) => setDraft({ ...draft, unit: e.target.value || null })}
+          placeholder="unit (e.g. g, ml)"
+          className="bg-transparent border border-line rounded px-2 py-1 text-small font-mono focus:border-ink focus:outline-none"
+        />
+      </div>
+      <input
+        value={draft.value_text ?? ''}
+        onChange={(e) => setDraft({ ...draft, value_text: e.target.value || null })}
+        placeholder="or free-form value"
+        className="w-full bg-transparent border border-line rounded px-2 py-1 text-small font-mono focus:border-ink focus:outline-none"
+      />
+      {err && <p className="text-small text-signal-red font-mono">{err}</p>}
+      <div className="flex gap-2 pt-1">
+        <button
+          onClick={save}
+          disabled={busy}
+          className="flex-1 h-10 bg-accent text-accent-fg rounded text-small font-medium font-mono disabled:opacity-60"
+        >
+          save
+        </button>
+        <button
+          onClick={() => {
+            setDraft(item);
+            setEditing(false);
+            onCancel?.();
+          }}
+          disabled={busy}
+          className="h-10 px-4 border border-line rounded text-small font-mono"
+        >
+          cancel
+        </button>
+        {mode === 'existing' && (
+          <button
+            onClick={remove}
+            disabled={busy}
+            className="h-10 px-4 border border-line rounded text-small font-mono text-signal-red"
+          >
+            remove
+          </button>
+        )}
+      </div>
+    </li>
   );
 }
 
-function groupByStack(items: StackItem[]): Record<string, StackItem[]> {
-  const out: Record<string, StackItem[]> = {};
-  for (const it of items) {
-    const key = it.stack_group ?? 'other';
-    if (!out[key]) out[key] = [];
-    out[key].push(it);
-  }
-  return out;
-}
-
-function labelForGroup(group: string): string {
-  switch (group) {
-    case 'morning_stack':
-      return 'morning';
-    case 'day_stack':
-      return 'day';
-    case 'sleep_stack':
-      return 'sleep';
-    case 'other':
-      return 'unassigned';
-    default:
-      return group;
-  }
-}
-
-function extFor(mime: string) {
-  if (mime.includes('mp4')) return 'm4a';
-  if (mime.includes('mpeg')) return 'mp3';
-  return 'webm';
+function labelForGroup(group: string | null): string | null {
+  if (!group) return null;
+  if (group === 'morning_stack') return 'morning';
+  if (group === 'day_stack') return 'day';
+  if (group === 'sleep_stack') return 'sleep';
+  return group;
 }

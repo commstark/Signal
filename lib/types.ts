@@ -92,11 +92,17 @@ export interface InterventionParsed {
   notes: string | null;
 }
 
-export interface StackParsed {
+export interface PreferenceParsed {
   items: Array<{
-    name: string;
-    dose: string | null;
-    timing: string | null;
-    stack_group: string | null;
+    key: string;
+    value_num: number | null;
+    value_text: string | null;
+    unit: string | null;
+    notes: string;
   }>;
+}
+
+export interface UserCalibrations {
+  // key -> { value_num, unit, notes }. Used for prompt injection.
+  [key: string]: { value_num: number | null; value_text: string | null; unit: string | null };
 }

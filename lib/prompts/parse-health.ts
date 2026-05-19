@@ -35,6 +35,13 @@ Return JSON only. Schema:
 
 Hard rules — these matter:
 
+0. USER CALIBRATIONS. The user message MAY begin with a "USER CALIBRATIONS" block
+   listing per-user numeric overrides (e.g. meat_serving_g = 227, cup_volume_ml = 295,
+   protein_shake_g = 30). When present, USE those values in place of the defaults
+   below. A user with meat_serving_g = 227 who says "I had a serving of steak"
+   should get ~227g of meat in protein/calorie attribution. A user with
+   protein_shake_g = 30 should get 30g protein per shake (not the default 24).
+
 1. SCORES (mood/energy/concentration, 1-10): fill ONLY when the user states or unambiguously implies a number.
    "felt good" -> descriptor "good", score null. NEVER invent a 7.
    "energy was an 8" -> score 8.
@@ -125,6 +132,31 @@ Hard rules — these matter:
 
 7. Use null over guessing. Empty arrays are valid.`;
 
-export function healthLogUserPrompt(transcript: string, occurredAtIso: string): string {
-  return `Transcript:\n"""${transcript}"""\n\nOccurred at (ISO, user timezone PST): ${occurredAtIso}\n\nReturn JSON only.`;
+export function healthLogUserPrompt(
+  transcript: string,
+  occurredAtIso: string,
+  calibrations?: { [key: string]: { value_num: number | null; value_text: string | null; unit: string | null } },
+): string {
+  const calibBlock = renderCalibrations(calibrations);
+  return `${calibBlock}Transcript:\n"""${transcript}"""\n\nOccurred at (ISO, user timezone PST): ${occurredAtIso}\n\nReturn JSON only.`;
+}
+
+// Per-user overrides applied on top of the system-prompt defaults.
+// Keep this dynamic chunk in the USER message so the system prompt
+// stays static and cache-friendly.
+function renderCalibrations(
+  calibrations?: { [key: string]: { value_num: number | null; value_text: string | null; unit: string | null } },
+): string {
+  if (!calibrations) return '';
+  const entries = Object.entries(calibrations);
+  if (entries.length === 0) return '';
+  const lines = entries
+    .map(([key, v]) => {
+      if (v.value_num != null) return `  ${key} = ${v.value_num}${v.unit ? ' ' + v.unit : ''}`;
+      if (v.value_text) return `  ${key} = ${v.value_text}`;
+      return null;
+    })
+    .filter((l): l is string => l !== null);
+  if (lines.length === 0) return '';
+  return `USER CALIBRATIONS (override the system prompt defaults for THIS user when applicable):\n${lines.join('\n')}\n\n`;
 }

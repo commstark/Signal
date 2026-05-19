@@ -4,6 +4,7 @@ import type {
   WorkoutLogParsed,
   SupplementLogParsed,
   InterventionParsed,
+  PreferenceParsed,
   MuscleGroup,
   ExerciseType,
 } from './types';
@@ -420,61 +421,44 @@ async function upsertSupplement(
   return null;
 }
 
-export async function writeStack(args: {
+export async function writePreferences(args: {
   userId: string;
-  items: Array<{
-    name: string;
-    dose: string | null;
-    timing: string | null;
-    stack_group: string | null;
-  }>;
-}): Promise<{ ok: boolean; warnings: string[]; inserted: number; updated: number }> {
+  parsed: PreferenceParsed;
+  source?: 'voice' | 'manual';
+}): Promise<{ ok: boolean; warnings: string[]; upserted: number; keys: string[] }> {
   const sb = createSupabaseAdmin();
   const warnings: string[] = [];
-  let inserted = 0;
-  let updated = 0;
+  const keys: string[] = [];
+  let upserted = 0;
+  const source = args.source ?? 'voice';
 
-  for (const raw of args.items) {
-    const name = raw.name.trim();
-    if (!name) continue;
-
-    const { data: existing, error: selErr } = await sb
-      .from('supplements')
-      .select('id, dose, timing, stack_group')
-      .eq('user_id', args.userId)
-      .ilike('name', name)
-      .limit(1);
-    if (selErr) {
-      warnings.push(`lookup "${name}": ${selErr.message}`);
+  for (const item of args.parsed.items ?? []) {
+    const key = (item.key ?? '').trim();
+    if (!key) {
+      warnings.push('skipped item: missing key');
       continue;
     }
-
-    if (existing && existing[0]) {
-      const patch: Record<string, string | null> = {};
-      if (raw.dose !== null) patch.dose = raw.dose;
-      if (raw.timing !== null) patch.timing = raw.timing;
-      if (raw.stack_group !== null) patch.stack_group = raw.stack_group;
-      if (Object.keys(patch).length === 0) continue;
-      const { error: updErr } = await sb
-        .from('supplements')
-        .update(patch)
-        .eq('id', existing[0].id);
-      if (updErr) warnings.push(`update "${name}": ${updErr.message}`);
-      else updated += 1;
-    } else {
-      const { error: insErr } = await sb.from('supplements').insert({
-        user_id: args.userId,
-        name,
-        dose: raw.dose,
-        timing: raw.timing,
-        stack_group: raw.stack_group,
-        is_stack: true,
-        active: true,
-      });
-      if (insErr) warnings.push(`insert "${name}": ${insErr.message}`);
-      else inserted += 1;
+    const { error } = await sb
+      .from('user_preferences')
+      .upsert(
+        {
+          user_id: args.userId,
+          key,
+          value_num: item.value_num,
+          value_text: item.value_text,
+          unit: item.unit,
+          notes: item.notes,
+          source,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,key' },
+      );
+    if (error) warnings.push(`upsert "${key}": ${error.message}`);
+    else {
+      upserted += 1;
+      keys.push(key);
     }
   }
 
-  return { ok: warnings.length === 0, warnings, inserted, updated };
+  return { ok: warnings.length === 0, warnings, upserted, keys };
 }
