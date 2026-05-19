@@ -8,7 +8,7 @@ interface Props {
   value: string;
   label: string;
   meta?: string;
-  field: 'protein_g' | 'calories_kcal' | 'fiber_g' | 'water_ml';
+  field: 'protein_g' | 'calories_kcal' | 'fiber_g' | 'water_ml' | 'sugar_g' | 'added_sugars_g';
   unit: string; // 'g', 'kcal', etc.
   rows: NutritionBreakdownRow[];
 }

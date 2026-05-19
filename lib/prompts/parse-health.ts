@@ -11,13 +11,16 @@ Return JSON only. Schema:
       "protein_g": number | null,
       "calories_kcal": number | null,
       "fiber_g": number | null,
-      "water_ml": number | null
+      "water_ml": number | null,
+      "sugar_g": number | null,
+      "added_sugars_g": number | null
     }
   ],
   "estimated_nutrition": {
     "calories_kcal": number | null,
     "protein_g": number | null,
     "fiber_g": number | null,
+    "sugar_g": number | null,
     "added_sugars_g": number | null,
     "saturated_fat_present": boolean | null,
     "carb_timing": "morning" | "midday" | "evening" | "late_night" | null,
@@ -77,7 +80,7 @@ Hard rules — these matter:
       - anything with zero attributable calories / protein / fiber / water
 
 3b. PER-ITEM NUTRIENTS. Attribute each item's share into its row:
-      protein_g, calories_kcal, fiber_g, water_ml.
+      protein_g, calories_kcal, fiber_g, water_ml, sugar_g, added_sugars_g.
     The sums across food_items MUST match the entry-level
     estimated_nutrition totals and water_ml. If a nutrient can't be
     attributed to a specific item (e.g. a sauce shared across the plate),
@@ -94,6 +97,20 @@ Hard rules — these matter:
         psyllium:     { fiber_g: 5, water_ml: 0 }      -- already counted via creatine
       "cup of water with my creatine" ->
         creatine:     { water_ml: 295 }                -- the cup IS the implicit creatine water; do not double-count
+
+3c. SUGAR. Always populate sugar_g (total sugars: natural + added) for any
+    food that contains sugar. added_sugars_g is the SUBSET that's refined /
+    table sugar / syrups / sweeteners — not naturally occurring fructose
+    or lactose. Both default to 0 (not null) for clearly non-sugar items
+    like plain meat / eggs / olive oil.
+    Examples:
+      "a banana"               -> sugar_g: 14,  added_sugars_g: 0
+      "a glass of orange juice"-> sugar_g: 22,  added_sugars_g: 0
+      "a can of coke"          -> sugar_g: 39,  added_sugars_g: 39
+      "yogurt with honey"      -> sugar_g: 18,  added_sugars_g: 12  (honey only)
+      "8oz grilled chicken"    -> sugar_g: 0,   added_sugars_g: 0
+    If you genuinely don't know (highly mixed dish), set both null and
+    confidence "low".
 
 4. SYMPTOMS: short snake_case strings only. Examples: headache, brain_fog, bloating,
    acid_reflux, joint_pain, fatigue, anxiety, nausea, congestion. Capture only when stated.

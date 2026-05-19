@@ -12,11 +12,14 @@ export interface HealthLogParsed {
     calories_kcal: number | null;
     fiber_g: number | null;
     water_ml: number | null;
+    sugar_g: number | null;
+    added_sugars_g: number | null;
   }>;
   estimated_nutrition: {
     calories_kcal: number | null;
     protein_g: number | null;
     fiber_g: number | null;
+    sugar_g: number | null;
     added_sugars_g: number | null;
     saturated_fat_present: boolean | null;
     carb_timing: 'morning' | 'midday' | 'evening' | 'late_night' | null;

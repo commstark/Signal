@@ -102,6 +102,7 @@ export async function writeHealthLog(args: {
       protein_g: clampNumeric(n.protein_g, 9999),
       calories_kcal: clampNumeric(n.calories_kcal, 99999),
       fiber_g: clampNumeric(n.fiber_g, 9999),
+      sugar_g: clampNumeric(n.sugar_g, 9999),
       added_sugars_g: clampNumeric(n.added_sugars_g, 9999),
       saturated_fat_present: typeof n.saturated_fat_present === 'boolean' ? n.saturated_fat_present : null,
       carb_timing: asEnum(n.carb_timing, CARB_TIMINGS),
@@ -137,6 +138,8 @@ export async function writeHealthLog(args: {
       calories_kcal: clampNumeric(f.calories_kcal, 99999),
       fiber_g: clampNumeric(f.fiber_g, 9999),
       water_ml: clampNumeric(f.water_ml, 30000),
+      sugar_g: clampNumeric(f.sugar_g, 9999),
+      added_sugars_g: clampNumeric(f.added_sugars_g, 9999),
       occurred_at: args.occurredAt,
     }));
     const { error: e } = await sb.from('food_log_items').insert(items);

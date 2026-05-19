@@ -87,6 +87,7 @@ create table if not exists health_logs (
   calories_kcal         numeric(7,1),
   fiber_g               numeric(6,2),
   added_sugars_g        numeric(6,2),
+  sugar_g               numeric(6,2),                  -- total sugars (natural + added)
   saturated_fat_present boolean,
   carb_timing           text,                                -- 'morning' | 'midday' | 'evening' | 'late_night'
   ultra_processed       boolean,
@@ -133,6 +134,8 @@ create table if not exists food_log_items (
   calories_kcal   numeric(7,1),
   fiber_g         numeric(6,2),
   water_ml        numeric(7,1),
+  sugar_g         numeric(6,2),
+  added_sugars_g  numeric(6,2),
   occurred_at     timestamptz not null,
   created_at      timestamptz not null default now()
 );
