@@ -27,6 +27,11 @@ Rules:
 - "health_log": food, mood, energy, symptoms, water, general how-I-feel.
 - "workout_log": exercises, sets, reps, weight, BJJ rounds, lifts.
 - "supplement_log": "took/skipped" a known supplement or stack.
+  EXCEPT: "took my day stack" / "took my day vitamins" / "took my vitamin stack"
+  should be classified as "mixed", because the day stack includes olive oil
+  (~120 kcal/tbsp) that needs to flow through the health parser for calorie
+  attribution. Same for any phrasing that implies the day/vitamin stack
+  was taken as a whole.
 - "intervention_start": "starting X today", "adding X to my stack", "trying X".
 - "intervention_stop": "stopping X", "quit X", "off X today".
 - "free_note": a journal-style note that doesn't fit the others.
