@@ -5,6 +5,7 @@ import { HEALTH_LOG_SYSTEM, healthLogUserPrompt } from './prompts/parse-health';
 import { WORKOUT_LOG_SYSTEM, workoutLogUserPrompt } from './prompts/parse-workout';
 import { SUPPLEMENT_LOG_SYSTEM, supplementLogUserPrompt } from './prompts/parse-supplement';
 import { INTERVENTION_SYSTEM, interventionUserPrompt } from './prompts/parse-intervention';
+import { STACK_PARSE_SYSTEM, stackParseUserPrompt } from './prompts/parse-stack';
 
 export interface ParseUsage {
   model: string;
@@ -95,5 +96,13 @@ export async function parseIntervention(transcript: string, direction: 'start' |
     system: INTERVENTION_SYSTEM,
     user: interventionUserPrompt(transcript, direction),
     maxTokens: 512,
+  });
+}
+
+export async function parseStack(transcript: string) {
+  return callHaiku({
+    system: STACK_PARSE_SYSTEM,
+    user: stackParseUserPrompt(transcript),
+    maxTokens: 1024,
   });
 }
