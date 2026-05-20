@@ -152,6 +152,22 @@ Hard rules — these matter:
     is attributed separately. Same logic for sweet additions
     (yogurt + honey -> two rows so added_sugars attribute to honey).
 
+3e. SHAKE CO-CONSUMPTION (mirror of supplement parser rule 10).
+    When the transcript mentions a protein shake — strict trigger,
+    literal word "shake" (or "smoothie" / "blend" in a clear drink
+    context) — the user also consumes collagen peptides and psyllium
+    husk. Emit food_items rows for ALL THREE even if collagen / psyllium
+    aren't explicitly named:
+      protein shake:     { protein_g: 24, calories_kcal: 120, water_ml: 300, sugar_g: 1, added_sugars_g: 0 }
+      collagen peptides: { protein_g: 9,  calories_kcal: 35,  water_ml: 0,   sugar_g: 0, added_sugars_g: 0 }
+      psyllium husk:     { fiber_g: 5,    water_ml: 0,        sugar_g: 0,    added_sugars_g: 0 }
+    Use USER CALIBRATIONS to override defaults when present
+    (e.g. protein_shake_g = 30 -> shake row gets protein_g: 30 instead
+    of 24). Bare "protein" without the word "shake" is NOT a trigger —
+    "protein wrap" / "protein bar" / "protein cookie" do not co-emit.
+    EXCEPT if the user explicitly says they skipped one ("had a shake
+    but skipped psyllium"), omit that item from food_items.
+
 4. SYMPTOMS: short snake_case strings only. Examples: headache, brain_fog, bloating,
    acid_reflux, joint_pain, fatigue, anxiety, nausea, congestion. Capture only when stated.
 

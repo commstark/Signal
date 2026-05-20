@@ -67,6 +67,30 @@ Rules:
 export function supplementLogUserPrompt(
   transcript: string,
   stack: Array<{ id: string; name: string; dose: string | null; timing: string | null; stack_group: string | null }>,
+  calibrations?: {
+    [key: string]: { value_num: number | null; value_text: string | null; unit: string | null; notes: string | null };
+  },
 ): string {
-  return `Transcript:\n"""${transcript}"""\n\nKnown stack:\n${JSON.stringify(stack, null, 2)}\n\nReturn JSON only.`;
+  const calibBlock = renderCalibrations(calibrations);
+  return `${calibBlock}Transcript:\n"""${transcript}"""\n\nKnown stack:\n${JSON.stringify(stack, null, 2)}\n\nReturn JSON only.`;
+}
+
+function renderCalibrations(
+  calibrations?: {
+    [key: string]: { value_num: number | null; value_text: string | null; unit: string | null; notes: string | null };
+  },
+): string {
+  if (!calibrations) return '';
+  const entries = Object.entries(calibrations);
+  if (entries.length === 0) return '';
+  const lines = entries
+    .map(([key, v]) => {
+      const label = v.notes?.trim() || key;
+      if (v.value_num != null) return `  ${label} = ${v.value_num}${v.unit ? ' ' + v.unit : ''}`;
+      if (v.value_text) return `  ${label} = ${v.value_text}`;
+      return null;
+    })
+    .filter((l): l is string => l !== null);
+  if (lines.length === 0) return '';
+  return `USER CALIBRATIONS (per-user dose overrides — apply when the stack item matches):\n${lines.join('\n')}\n\n`;
 }

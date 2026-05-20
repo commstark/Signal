@@ -3,7 +3,10 @@ import { createSupabaseAdmin } from './supabase/admin';
 const TZ = 'America/Los_Angeles';
 
 export function dayBoundsPst(now = new Date()): { startIso: string; endIso: string } {
-  // Compute "today" in PST by formatting in the target tz then re-parsing.
+  // Compute "today" in LA time, then derive the actual UTC offset for
+  // that date so DST transitions don't shove entries into the wrong day.
+  // Old code hardcoded -08:00 year-round; during PDT months an entry
+  // logged at 11:30 PM local would land in "tomorrow" on /today.
   const fmt = new Intl.DateTimeFormat('en-CA', {
     timeZone: TZ,
     year: 'numeric',
@@ -14,11 +17,29 @@ export function dayBoundsPst(now = new Date()): { startIso: string; endIso: stri
   const y = parts.find((p) => p.type === 'year')!.value;
   const m = parts.find((p) => p.type === 'month')!.value;
   const d = parts.find((p) => p.type === 'day')!.value;
-  // PST/PDT: PDT (-07:00) Mar-Nov, PST (-08:00) Nov-Mar. We don't need millisecond accuracy;
-  // use -08:00 to be safe so we include the full local day.
-  const startIso = new Date(`${y}-${m}-${d}T00:00:00-08:00`).toISOString();
+  const offset = laOffsetForDate(`${y}-${m}-${d}`); // "-07:00" or "-08:00"
+  const startIso = new Date(`${y}-${m}-${d}T00:00:00${offset}`).toISOString();
   const endIso = new Date(new Date(startIso).getTime() + 24 * 60 * 60_000).toISOString();
   return { startIso, endIso };
+}
+
+// Returns "-07:00" (PDT) or "-08:00" (PST) for the given local LA date.
+// Derives the real offset by asking the IANA tz what 12:00 UTC looks
+// like in LA, then comparing.
+function laOffsetForDate(ymd: string): string {
+  const probe = new Date(`${ymd}T12:00:00Z`);
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: TZ,
+    hour: '2-digit',
+    hour12: false,
+  });
+  const localHour = Number(dtf.format(probe).replace(/[^\d]/g, ''));
+  const utcHour = 12;
+  // localHour - utcHour gives the offset hours (negative for west of UTC).
+  // 12:00 UTC -> 04:00 PST (=04, offset -8) or 05:00 PDT (=05, offset -7).
+  // Hour wraps if local-vs-UTC crosses midnight; this date is safe at noon.
+  const diff = localHour - utcHour;
+  return diff === -7 ? '-07:00' : '-08:00';
 }
 
 export interface TodaySummary {
