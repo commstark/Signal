@@ -225,12 +225,28 @@ export async function fetchTodayWorkouts(userId: string): Promise<TodayWorkouts>
   const sb = createSupabaseAdmin();
   const { startIso, endIso } = dayBoundsPst();
 
-  const { data: sessions } = await sb
-    .from('workout_sessions')
-    .select('started_at, ended_at')
+  // Start from exercises — only count sessions that actually have work
+  // in them. Avoids "1 session · 0 exercises" when a mixed entry left
+  // an orphan workout_sessions row behind.
+  const { data: exs } = await sb
+    .from('workout_exercises')
+    .select('id, exercise_name, muscle_group, exercise_type, occurred_at, session_id')
     .eq('user_id', userId)
-    .gte('started_at', startIso)
-    .lt('started_at', endIso);
+    .gte('occurred_at', startIso)
+    .lt('occurred_at', endIso)
+    .order('occurred_at', { ascending: true });
+
+  if (!exs?.length) {
+    return { session_count: 0, total_minutes: null, exercises: [] };
+  }
+
+  const sessionIds = Array.from(new Set(exs.map((e) => e.session_id as string).filter(Boolean)));
+  const { data: sessions } = sessionIds.length
+    ? await sb
+        .from('workout_sessions')
+        .select('started_at, ended_at')
+        .in('id', sessionIds)
+    : { data: [] as Array<{ started_at: string | null; ended_at: string | null }> };
 
   const totalMinutes = sessions?.length
     ? sessions.reduce((acc, s) => {
@@ -239,18 +255,6 @@ export async function fetchTodayWorkouts(userId: string): Promise<TodayWorkouts>
         return acc + ms / 60_000;
       }, 0)
     : 0;
-
-  const { data: exs } = await sb
-    .from('workout_exercises')
-    .select('id, exercise_name, muscle_group, exercise_type, occurred_at')
-    .eq('user_id', userId)
-    .gte('occurred_at', startIso)
-    .lt('occurred_at', endIso)
-    .order('occurred_at', { ascending: true });
-
-  if (!exs?.length) {
-    return { session_count: sessions?.length ?? 0, total_minutes: null, exercises: [] };
-  }
 
   const exIds = exs.map((e) => e.id as string);
   const { data: sets } = await sb
@@ -305,7 +309,7 @@ export async function fetchTodayWorkouts(userId: string): Promise<TodayWorkouts>
   });
 
   return {
-    session_count: sessions?.length ?? 0,
+    session_count: sessionIds.length,
     total_minutes: totalMinutes > 0 ? Math.round(totalMinutes) : null,
     exercises,
   };
