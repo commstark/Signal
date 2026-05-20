@@ -153,6 +153,8 @@ Hard rules — these matter:
        protein shake          -> +300 ml
        creatine               -> +295 ml  (1 user cup)
        glycine                -> +295 ml  (1 user cup)
+       took vitamins / stack / multivitamin / supplements
+                              -> +295 ml  (pills go down with a cup of water)
        "water bottle"         -> +500 ml  (default size unless stated)
    - Sum implicit and explicit water. "Had a protein shake and a
      water bottle" -> water_ml: 800 (300 + 500).
