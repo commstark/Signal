@@ -160,25 +160,44 @@ function HomeInner() {
 }
 
 const EXAMPLES: Array<{ label: string; quote: string }> = [
-  { label: 'food', quote: '"had a turkey sandwich and a black coffee."' },
-  { label: 'workout', quote: '"deadlifts 5x5 at 315, then 20 min easy bike."' },
-  { label: 'update stack', quote: '"from now on I take 400 IU vitamin E in the morning."' },
-  { label: 'update prefs', quote: '"for me, a serving of meat is half a pound."' },
+  // food
+  { label: 'food', quote: 'had a turkey sandwich and a black coffee.' },
+  { label: 'food', quote: 'two scrambled eggs on toast with avocado.' },
+  { label: 'food', quote: 'salmon bowl with rice and greens for dinner.' },
+  { label: 'food', quote: 'banana and a protein shake post-workout.' },
+  { label: 'food', quote: '8oz grilled chicken and roasted broccoli.' },
+  // workout
+  { label: 'workout', quote: 'deadlifts 5x5 at 315, then 20 min easy bike.' },
+  { label: 'workout', quote: 'bjj rolling, six rounds of five minutes.' },
+  { label: 'workout', quote: 'bench 4x8 at 185, pull-ups 3x10 bodyweight.' },
+  { label: 'workout', quote: 'dead hangs three sets of 45 seconds.' },
+  { label: 'workout', quote: '30 minute zone two run, 5k easy.' },
+  // stack
+  { label: 'stack', quote: 'from now on I take 400 IU vitamin E in the morning.' },
+  { label: 'stack', quote: 'adding 5g creatine to my morning stack.' },
+  { label: 'stack', quote: 'starting magnesium glycinate 600mg before bed.' },
+  { label: 'stack', quote: 'switching my protein shake to whey isolate.' },
+  { label: 'stack', quote: 'stopping ashwagandha — done with that experiment.' },
+  // prefs
+  { label: 'prefs', quote: 'for me, a serving of meat is half a pound.' },
+  { label: 'prefs', quote: 'from now on a cup is 295ml for me.' },
+  { label: 'prefs', quote: 'my protein shake is 30g of protein.' },
+  { label: 'prefs', quote: 'in general, a serving of rice is one cup cooked.' },
+  { label: 'prefs', quote: 'for me, a slice of pizza is around 350 kcal.' },
 ];
 
 function ExampleHints() {
+  // One random example per page load. Picks fresh on each mount so a
+  // refresh always surfaces something new. Uses state seeded once to
+  // avoid hydration mismatch.
+  const [example] = useState(() => EXAMPLES[Math.floor(Math.random() * EXAMPLES.length)]);
   return (
-    <div className="w-full space-y-2">
-      <p className="text-micro text-ink-3 uppercase tracking-wide font-mono">try saying</p>
-      <ul className="space-y-1.5">
-        {EXAMPLES.map((ex) => (
-          <li key={ex.label} className="text-small leading-snug">
-            <span className="font-mono text-ink-3">{ex.label}:</span>{' '}
-            <span className="text-ink-2">{ex.quote}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <p className="w-full text-small text-ink-2 leading-snug">
+      <span className="font-mono text-micro uppercase tracking-wide text-ink-3 mr-2">
+        {example.label}
+      </span>
+      &ldquo;{example.quote}&rdquo;
+    </p>
   );
 }
 

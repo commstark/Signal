@@ -6,13 +6,14 @@ interface PreferenceRow {
   value_num: number | null;
   value_text: string | null;
   unit: string | null;
+  notes: string | null;
 }
 
 export async function loadUserCalibrations(userId: string): Promise<UserCalibrations> {
   const sb = createSupabaseAdmin();
   const { data, error } = await sb
     .from('user_preferences')
-    .select('key, value_num, value_text, unit')
+    .select('key, value_num, value_text, unit, notes')
     .eq('user_id', userId);
   if (error || !data) return {};
   const out: UserCalibrations = {};
@@ -21,6 +22,7 @@ export async function loadUserCalibrations(userId: string): Promise<UserCalibrat
       value_num: r.value_num,
       value_text: r.value_text,
       unit: r.unit,
+      notes: r.notes,
     };
   }
   return out;

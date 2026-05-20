@@ -149,10 +149,19 @@ Hard rules — these matter:
 
 7. Use null over guessing. Empty arrays are valid.`;
 
+type Calibrations = {
+  [key: string]: {
+    value_num: number | null;
+    value_text: string | null;
+    unit: string | null;
+    notes: string | null;
+  };
+};
+
 export function healthLogUserPrompt(
   transcript: string,
   occurredAtIso: string,
-  calibrations?: { [key: string]: { value_num: number | null; value_text: string | null; unit: string | null } },
+  calibrations?: Calibrations,
 ): string {
   const calibBlock = renderCalibrations(calibrations);
   return `${calibBlock}Transcript:\n"""${transcript}"""\n\nOccurred at (ISO, user timezone PST): ${occurredAtIso}\n\nReturn JSON only.`;
@@ -160,17 +169,18 @@ export function healthLogUserPrompt(
 
 // Per-user overrides applied on top of the system-prompt defaults.
 // Keep this dynamic chunk in the USER message so the system prompt
-// stays static and cache-friendly.
-function renderCalibrations(
-  calibrations?: { [key: string]: { value_num: number | null; value_text: string | null; unit: string | null } },
-): string {
+// stays static and cache-friendly. Prefer the human-readable label
+// (notes) since the LLM resolves "a serving of meat = 227 g" more
+// reliably than "meat_serving_g = 227 g".
+function renderCalibrations(calibrations?: Calibrations): string {
   if (!calibrations) return '';
   const entries = Object.entries(calibrations);
   if (entries.length === 0) return '';
   const lines = entries
     .map(([key, v]) => {
-      if (v.value_num != null) return `  ${key} = ${v.value_num}${v.unit ? ' ' + v.unit : ''}`;
-      if (v.value_text) return `  ${key} = ${v.value_text}`;
+      const label = v.notes?.trim() || key;
+      if (v.value_num != null) return `  ${label} = ${v.value_num}${v.unit ? ' ' + v.unit : ''}`;
+      if (v.value_text) return `  ${label} = ${v.value_text}`;
       return null;
     })
     .filter((l): l is string => l !== null);

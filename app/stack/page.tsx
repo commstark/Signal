@@ -97,7 +97,7 @@ function StackSection({
           nothing here yet. say something like <span className="font-mono">&quot;from now on I take 5g creatine in the morning&quot;</span> on the home page.
         </p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="list-none space-y-1">
           {items.map((it) => (
             <StackRow key={it.id} item={it} reload={reload} />
           ))}
@@ -197,7 +197,7 @@ function StackRow({
     return (
       <li
         onClick={() => setEditing(true)}
-        className="flex items-baseline justify-between text-body cursor-pointer hover:bg-line/20 -mx-2 px-2 py-1 rounded"
+        className="flex items-baseline justify-between text-body cursor-pointer hover:bg-line/20 -mx-2 px-2 py-1.5 rounded"
       >
         <span>{item.name}</span>
         <span className="text-small text-ink-2 font-mono">
@@ -210,7 +210,7 @@ function StackRow({
   }
 
   return (
-    <li className="space-y-2 border border-line rounded p-3">
+    <li className="list-none space-y-2 border border-line rounded p-3">
       <input
         value={draft.name}
         onChange={(e) => setDraft({ ...draft, name: e.target.value })}
@@ -296,18 +296,15 @@ function PrefsSection({
           + add
         </button>
       </div>
-      <p className="text-small text-ink-2">
-        per-you calibrations the parser uses. e.g. <span className="font-mono">meat_serving_g = 227</span> means &quot;a serving of meat&quot; counts as 227 g for your logs.
-      </p>
 
       {items === null ? (
         <p className="text-small font-mono text-ink-3">loading…</p>
       ) : items.length === 0 && !adding ? (
         <p className="text-small text-ink-2">
-          nothing here yet. say something like <span className="font-mono">&quot;from now on a serving of meat is half a pound for me&quot;</span> on the home page.
+          nothing here yet. on the home page, say something like &ldquo;from now on a serving of meat is half a pound for me.&rdquo;
         </p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="list-none space-y-1">
           {items.map((it) => (
             <PrefRow key={it.id} item={it} reload={reload} />
           ))}
@@ -354,11 +351,15 @@ function PrefRow({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const displayLabel = labelForPref(item);
+
   async function save() {
-    if (!draft.key.trim()) {
-      setErr('key required');
+    const label = (draft.notes ?? '').trim();
+    if (!label) {
+      setErr('please describe what this is');
       return;
     }
+    const key = mode === 'existing' ? draft.key : labelToKey(label, draft.unit);
     setBusy(true);
     setErr(null);
     try {
@@ -368,11 +369,11 @@ function PrefRow({
         body: JSON.stringify({
           items: [
             {
-              key: draft.key.trim(),
+              key,
               value_num: draft.value_num,
               value_text: draft.value_text,
               unit: draft.unit,
-              notes: draft.notes ?? '',
+              notes: label,
             },
           ],
         }),
@@ -395,7 +396,7 @@ function PrefRow({
       onCancel?.();
       return;
     }
-    if (!confirm(`remove preference "${item.key}"?`)) return;
+    if (!confirm(`remove "${displayLabel}"?`)) return;
     setBusy(true);
     try {
       await fetch('/api/preferences/delete', {
@@ -413,9 +414,9 @@ function PrefRow({
     return (
       <li
         onClick={() => setEditing(true)}
-        className="flex items-baseline justify-between text-body cursor-pointer hover:bg-line/20 -mx-2 px-2 py-1 rounded"
+        className="flex items-baseline justify-between text-body cursor-pointer hover:bg-line/20 -mx-2 px-2 py-1.5 rounded"
       >
-        <span className="font-mono text-small">{item.key}</span>
+        <span>{displayLabel}</span>
         <span className="text-small text-ink-2 font-mono">
           {item.value_num != null
             ? `${item.value_num}${item.unit ? ' ' + item.unit : ''}`
@@ -426,14 +427,14 @@ function PrefRow({
   }
 
   return (
-    <li className="space-y-2 border border-line rounded p-3">
+    <li className="list-none space-y-2 border border-line rounded p-3">
       <input
-        value={draft.key}
-        onChange={(e) => setDraft({ ...draft, key: e.target.value })}
-        placeholder="key (e.g. meat_serving_g)"
-        className="w-full bg-transparent border-b border-line text-body font-mono focus:border-ink focus:outline-none py-1"
+        value={draft.notes ?? ''}
+        onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
+        placeholder="what is it? e.g. cup of water, serving of meat"
+        className="w-full bg-transparent border-b border-line text-body focus:border-ink focus:outline-none py-1"
       />
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-[1fr_auto] gap-2">
         <input
           inputMode="decimal"
           value={draft.value_num ?? ''}
@@ -442,22 +443,16 @@ function PrefRow({
             const n = v === '' ? null : Number(v);
             setDraft({ ...draft, value_num: Number.isFinite(n as number) ? (n as number) : null });
           }}
-          placeholder="value (number)"
-          className="bg-transparent border border-line rounded px-2 py-1 text-small font-mono focus:border-ink focus:outline-none"
+          placeholder="value"
+          className="bg-transparent border border-line rounded px-3 py-2 text-body font-mono focus:border-ink focus:outline-none"
         />
         <input
           value={draft.unit ?? ''}
           onChange={(e) => setDraft({ ...draft, unit: e.target.value || null })}
-          placeholder="unit (e.g. g, ml)"
-          className="bg-transparent border border-line rounded px-2 py-1 text-small font-mono focus:border-ink focus:outline-none"
+          placeholder="unit"
+          className="w-20 bg-transparent border border-line rounded px-3 py-2 text-body font-mono focus:border-ink focus:outline-none"
         />
       </div>
-      <input
-        value={draft.value_text ?? ''}
-        onChange={(e) => setDraft({ ...draft, value_text: e.target.value || null })}
-        placeholder="or free-form value"
-        className="w-full bg-transparent border border-line rounded px-2 py-1 text-small font-mono focus:border-ink focus:outline-none"
-      />
       {err && <p className="text-small text-signal-red font-mono">{err}</p>}
       <div className="flex gap-2 pt-1">
         <button
@@ -490,6 +485,24 @@ function PrefRow({
       </div>
     </li>
   );
+}
+
+function labelForPref(item: PrefItem): string {
+  if (item.notes?.trim()) return item.notes.trim();
+  // Fall back to humanising the snake_case key for old rows.
+  const k = item.key.replace(/_(g|ml|kcal|iu|oz|mg|mcg)$/i, '').replace(/_/g, ' ');
+  return k || item.key;
+}
+
+function labelToKey(label: string, unit: string | null): string {
+  const base = label
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  const suffix = (unit ?? '').toLowerCase().replace(/[^a-z]/g, '');
+  if (!suffix || base.endsWith(`_${suffix}`)) return base;
+  return `${base}_${suffix}`;
 }
 
 function labelForGroup(group: string | null): string | null {
