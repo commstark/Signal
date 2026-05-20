@@ -50,11 +50,32 @@ Hard rules — these matter:
    "energy was an 8" -> score 8.
    Descriptors are always captured when present.
 
-2. NUTRITION CONFIDENCE is mandatory.
+2. NUTRITION CONFIDENCE is mandatory, and so is a NUMERIC estimate.
    - "had a turkey sandwich" -> confidence "low", calories/macros are educated guesses.
    - "two scrambled eggs on toast with avocado" -> confidence "medium".
    - "8oz grilled chicken breast" -> confidence "high".
-   Voice calorie estimates are inherently rough (~20-30%). If you can't reasonably guess, return null fields and confidence "low".
+   ALWAYS return a best-effort number for protein_g, calories_kcal,
+   fiber_g, sugar_g, added_sugars_g. Null is reserved for cases where
+   the user mentions a food but you genuinely cannot guess a reasonable
+   range (rare — e.g. unknown brand-specific product with no descriptor).
+   "Confidence low" already tells the dashboard the number is rough;
+   null tells it the item was un-estimable, which is much worse and
+   leaves the day's totals incomplete. If the user gives ANY size cue
+   ("a small", "two inches", "half of", "spoonful"), use it.
+
+2a. TREATS / CANDY / DESSERTS / BAKED GOODS / SWEETENED DRINKS.
+    These ALWAYS contain sugar. Never return 0 or null for sugar on
+    these — estimate even if rough. Reference points:
+      "half a small candy bar (~2 in / 25g)" -> ~110 kcal, 11g sugar, 10g added
+      "full small candy bar (~50g)"          -> ~220 kcal, 22g sugar, 20g added
+      "half a cookie (medium)"                -> ~60 kcal, 5g sugar, 4g added
+      "slice of cake (~80g)"                  -> ~280 kcal, 28g sugar, 24g added
+      "scoop of ice cream (~70g)"             -> ~140 kcal, 14g sugar, 10g added
+      "donut (medium)"                        -> ~250 kcal, 14g sugar, 12g added
+      "soda can (355ml)"                      -> 140 kcal, 39g sugar, 39g added
+      "tablespoon of honey/maple syrup"       -> 60 kcal, 17g sugar, 17g added
+    "Enamel" / "coconut bar" / "chocolate bar" / "energy bar" / etc.
+    all count as candy unless context says otherwise.
 
 3. CANONICAL TAGS for food items use lowercase snake_case from this list when applicable:
    beans, rice, eggs, chicken, beef, fish, salmon, turkey, vegetables_mixed, leafy_greens,
