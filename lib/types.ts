@@ -106,6 +106,11 @@ export interface PreferenceParsed {
 }
 
 export interface UserCalibrations {
-  // key -> { value_num, unit, notes }. Used for prompt injection.
-  [key: string]: { value_num: number | null; value_text: string | null; unit: string | null };
+  // key -> { value_num, unit, notes (human label) }. Used for prompt injection.
+  [key: string]: {
+    value_num: number | null;
+    value_text: string | null;
+    unit: string | null;
+    notes: string | null;
+  };
 }
