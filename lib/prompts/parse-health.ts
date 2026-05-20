@@ -112,6 +112,25 @@ Hard rules — these matter:
     If you genuinely don't know (highly mixed dish), set both null and
     confidence "low".
 
+3d. SPLIT vs LUMP. Emit one food_items row per distinct ingredient the
+    user NAMES. Lump only when the user uses a single composite name.
+    The rule of thumb: count the distinct food NOUNS in the transcript —
+    that's the row count.
+    Examples:
+      "three eggs with cheese in a protein wrap" -> 3 items
+          eggs (3):     ~21g protein, ~210 kcal, sugar_g 0
+          cheese:       ~6g protein, ~110 kcal, ~9g fat, sugar_g 0
+          protein wrap: ~10g protein, ~25g carb, ~180 kcal, sugar_g ~1
+      "burrito bowl with rice, beans, chicken, salsa" -> 4 items
+      "PB&J on whole wheat with a banana on the side" -> 2 items
+          (PB&J sandwich is one composite; banana is separate)
+      "turkey sandwich" -> 1 item (single composite name)
+      "smoothie with banana, spinach, protein powder, oat milk" -> 4 items
+    Splitting matters because eggs / cheese / wrap have very different
+    macro profiles and the dashboard breakdown is more useful when each
+    is attributed separately. Same logic for sweet additions
+    (yogurt + honey -> two rows so added_sugars attribute to honey).
+
 4. SYMPTOMS: short snake_case strings only. Examples: headache, brain_fog, bloating,
    acid_reflux, joint_pain, fatigue, anxiety, nausea, congestion. Capture only when stated.
 

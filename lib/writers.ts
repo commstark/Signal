@@ -159,6 +159,13 @@ export async function writeWorkoutLog(args: {
   const sb = createSupabaseAdmin();
   const interventionId = await findActiveInterventionId(sb, args.userId, args.occurredAt);
 
+  // If the entry has no exercises, don't touch workout_sessions at all.
+  // Otherwise a 'mixed' intent with food-only content used to leave an
+  // orphan "1 session · 0 exercises" row on /today.
+  if (!args.parsed.exercises?.length) {
+    return { ok: true, warnings };
+  }
+
   // Session is grouped within a 90-min window. We treat all exercises from
   // one entry as part of one session.
   const ninetyAgo = new Date(new Date(args.occurredAt).getTime() - 90 * 60_000).toISOString();
@@ -195,12 +202,6 @@ export async function writeWorkoutLog(args: {
       return { ok: false, warnings };
     }
     sessionId = created.id;
-  }
-
-  if (!args.parsed.exercises?.length) {
-    // Empty is fine — common for 'mixed' intent entries that mention
-    // food/supplements but no exercise. Don't pollute parse_warnings.
-    return { ok: true, warnings };
   }
 
   let anyExerciseWritten = false;
