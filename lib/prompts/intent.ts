@@ -43,6 +43,13 @@ Rules:
      "I had a cup of coffee"                  -> health_log
 - "free_note": a journal-style note that doesn't fit the others.
 - "mixed": clearly contains two or more of the above (e.g. food + workout).
+   ALSO classify as "mixed" when the transcript mentions a protein shake
+   (literal word "shake") OR an individual stack supplement explicitly
+   ("vitamin C", "creatine", "magnesium", etc.). These imply BOTH a
+   nutrition log (the shake/supplement has calories/protein and goes
+   down with water) AND a supplement adherence log. Running both parsers
+   is the only way the protein tile picks up shake/collagen and the
+   adherence panel ticks correctly.
 
 Default bias: treat a transcript as a one-off log unless it contains an
 explicit rule-setting phrase. "I take vitamin E daily" without "from now
