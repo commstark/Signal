@@ -47,6 +47,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, mode: 'update' });
   }
 
+  // Dedupe on name (case-insensitive) before inserting — manual "+ add"
+  // shouldn't create a duplicate row when the user re-adds an existing
+  // supplement.
+  const { data: existing, error: lookupErr } = await admin
+    .from('supplements')
+    .select('id')
+    .eq('user_id', user.id)
+    .ilike('name', name)
+    .limit(1);
+  if (lookupErr) return NextResponse.json({ error: lookupErr.message }, { status: 500 });
+  if (existing && existing[0]) {
+    const { error } = await admin
+      .from('supplements')
+      .update({ ...patch, active: true })
+      .eq('id', existing[0].id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, mode: 'update', deduped: true });
+  }
+
   const { error } = await admin.from('supplements').insert({
     user_id: user.id,
     ...patch,

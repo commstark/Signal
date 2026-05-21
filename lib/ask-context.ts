@@ -82,6 +82,7 @@ export async function buildContextMarkdown(userId: string, window: AskWindow): P
     supplementsRes,
     supplementLogsRes,
     interventionsRes,
+    preferencesRes,
   ] = await Promise.all([
     sb
       .from('entries')
@@ -137,6 +138,10 @@ export async function buildContextMarkdown(userId: string, window: AskWindow): P
       .select('id, name, type, direction, started_at, ended_at, status, expected_window_days, notes')
       .eq('user_id', userId)
       .or(`status.eq.active,started_at.gte.${startIso}`),
+    sb
+      .from('user_preferences')
+      .select('key, value_num, value_text, unit, notes')
+      .eq('user_id', userId),
   ]);
 
   const entries = entriesRes.data ?? [];
@@ -148,6 +153,7 @@ export async function buildContextMarkdown(userId: string, window: AskWindow): P
   const supplements = supplementsRes.data ?? [];
   const supplementLogs = supplementLogsRes.data ?? [];
   const interventions = interventionsRes.data ?? [];
+  const preferences = preferencesRes.data ?? [];
 
   // -- Aggregates ---------------------------------------------------------
   const days = window === 'today' ? 1 : window === '7d' ? 7 : 30;
@@ -219,6 +225,23 @@ export async function buildContextMarkdown(userId: string, window: AskWindow): P
     lines.push(`- Supplement adherence: ${adherencePct}% (${supplements.length} active in stack)`);
   }
   lines.push(``);
+
+  // -- User calibrations -------------------------------------------------
+  // Per-user numeric overrides the parser uses. Surfaced here so the
+  // answering model knows the user means 227g when they say "serving of
+  // meat", not the default.
+  if (preferences.length) {
+    lines.push(`## User calibrations`);
+    for (const p of preferences) {
+      const label = (p.notes as string | null)?.trim() || (p.key as string);
+      const value =
+        p.value_num != null
+          ? `${p.value_num}${p.unit ? ' ' + (p.unit as string) : ''}`
+          : (p.value_text as string | null) ?? '—';
+      lines.push(`- ${label}: ${value}`);
+    }
+    lines.push(``);
+  }
 
   // -- Active interventions ----------------------------------------------
   const activeInts = interventions.filter((i) => i.status === 'active');

@@ -88,10 +88,11 @@ export async function parseWorkoutLog(transcript: string, occurredAtIso: string)
 export async function parseSupplementLog(
   transcript: string,
   stack: Array<{ id: string; name: string; dose: string | null; timing: string | null; stack_group: string | null }>,
+  calibrations?: UserCalibrations,
 ) {
   return callHaiku({
     system: SUPPLEMENT_LOG_SYSTEM,
-    user: supplementLogUserPrompt(transcript, stack),
+    user: supplementLogUserPrompt(transcript, stack, calibrations),
     maxTokens: 1024,
   });
 }

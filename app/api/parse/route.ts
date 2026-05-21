@@ -205,7 +205,8 @@ export async function POST(req: NextRequest) {
         .select('id, name, dose, timing, stack_group')
         .eq('user_id', user.id)
         .eq('active', true);
-      const { value, usage } = await parseSupplementLog(transcript, stack ?? []);
+      const calibrations = await loadUserCalibrations(user.id);
+      const { value, usage } = await parseSupplementLog(transcript, stack ?? [], calibrations);
       usageTotals.push(usage);
       extractedFacts.supplement = value;
       await recordUsage({

@@ -331,10 +331,13 @@ export async function writeIntervention(args: {
     return { ok: false, warnings };
   }
 
-  // For supplement-type starts, also reflect into the persistent stack so
-  // "took my day stack" picks it up next time. Best-effort: a failure here
-  // doesn't undo the intervention write.
-  if (args.parsed.type === 'supplement' && args.parsed.direction === 'start') {
+  // For supplement-type starts/changes, also reflect into the persistent
+  // stack so "took my day stack" picks it up next time. Best-effort: a
+  // failure here doesn't undo the intervention write.
+  if (
+    args.parsed.type === 'supplement' &&
+    (args.parsed.direction === 'start' || args.parsed.direction === 'change')
+  ) {
     const { name, dose, timing, stack_group } = splitSupplementName(args.parsed.name);
     const upsertWarning = await upsertSupplement(sb, args.userId, {
       name,
@@ -393,13 +396,29 @@ async function upsertSupplement(
   userId: string,
   item: { name: string; dose: string | null; timing: string | null; stack_group: string | null },
 ): Promise<string | null> {
-  const { data: existing, error: selErr } = await sb
+  // Exact match first to avoid ilike-partials wrongly hitting "Vitamin D3 + K2"
+  // when the user said "Vitamin D3". Fall back to ilike only if no exact match.
+  let existing: Array<{ id: string; dose: string | null; timing: string | null; stack_group: string | null }> | null = null;
+  const exact = await sb
     .from('supplements')
     .select('id, dose, timing, stack_group')
     .eq('user_id', userId)
-    .ilike('name', item.name)
+    .ilike('name', item.name.trim())
     .limit(1);
-  if (selErr) return `supplements lookup failed: ${selErr.message}`;
+  if (exact.error) return `supplements lookup failed: ${exact.error.message}`;
+  if (exact.data && exact.data.length) {
+    existing = exact.data;
+  } else {
+    const fuzzy = await sb
+      .from('supplements')
+      .select('id, dose, timing, stack_group')
+      .eq('user_id', userId)
+      .ilike('name', `%${item.name.trim()}%`)
+      .order('name', { ascending: true })
+      .limit(1);
+    if (fuzzy.error) return `supplements lookup failed: ${fuzzy.error.message}`;
+    existing = fuzzy.data ?? null;
+  }
 
   if (existing && existing[0]) {
     const patch: Record<string, string> = {};

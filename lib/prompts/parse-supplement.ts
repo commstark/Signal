@@ -33,9 +33,21 @@ Rules:
 9. Use the canonical supplement_name from the stack when matched; otherwise echo the user's wording.
 
 10. KNOWN USER HABIT — protein shake co-taking:
-    When the transcript mentions a protein shake (any wording: "had a
-    shake", "drank my protein shake", "shake with collagen", etc.), the
-    user habitually co-takes EXACTLY these three at the same time:
+    Trigger CONDITIONS (ALL must hold):
+      a. The literal word "shake" appears in the transcript (also accept
+         "smoothie" or "blend" if it clearly refers to a protein drink).
+      b. The context is the user reporting they DRANK / HAD / MADE one.
+      c. The transcript is logging supplement intake (intent supplement_log
+         or mixed) — not a generic food log that happens to mention shake.
+    Bare "protein" is NOT a trigger. Things that LOOK like protein but
+    are food, NOT shakes, MUST be ignored by this rule:
+      - "protein wrap" / "protein tortilla"
+      - "protein bar" / "protein cookie" / "protein cereal"
+      - "protein pancake" / "protein oats"
+      - "protein powder" used in baking (e.g. "added protein powder to
+        my pancakes")
+    When all trigger conditions hold, the user habitually co-takes
+    EXACTLY these three at the same time:
       - the protein shake itself (if it's in the stack as a supplement)
       - collagen peptides (or "collagen")
       - psyllium husk (or "psyllium")
@@ -45,11 +57,40 @@ Rules:
     unless the user explicitly says they took them.
     EXCEPT: if the user explicitly says they skipped one of the three
     (e.g. "had a shake but skipped psyllium today"), log that item as
-    taken=false instead.`;
+    taken=false instead.
+
+11. WHEN UNSURE, DON'T LOG. If the transcript is ambiguous about whether
+    the user took anything (e.g. you found 'protein' but not 'shake'),
+    return logs: []. Auto-logging items the user didn't take is worse
+    than missing some they did — they can re-record more clearly.`;
 
 export function supplementLogUserPrompt(
   transcript: string,
   stack: Array<{ id: string; name: string; dose: string | null; timing: string | null; stack_group: string | null }>,
+  calibrations?: {
+    [key: string]: { value_num: number | null; value_text: string | null; unit: string | null; notes: string | null };
+  },
 ): string {
-  return `Transcript:\n"""${transcript}"""\n\nKnown stack:\n${JSON.stringify(stack, null, 2)}\n\nReturn JSON only.`;
+  const calibBlock = renderCalibrations(calibrations);
+  return `${calibBlock}Transcript:\n"""${transcript}"""\n\nKnown stack:\n${JSON.stringify(stack, null, 2)}\n\nReturn JSON only.`;
+}
+
+function renderCalibrations(
+  calibrations?: {
+    [key: string]: { value_num: number | null; value_text: string | null; unit: string | null; notes: string | null };
+  },
+): string {
+  if (!calibrations) return '';
+  const entries = Object.entries(calibrations);
+  if (entries.length === 0) return '';
+  const lines = entries
+    .map(([key, v]) => {
+      const label = v.notes?.trim() || key;
+      if (v.value_num != null) return `  ${label} = ${v.value_num}${v.unit ? ' ' + v.unit : ''}`;
+      if (v.value_text) return `  ${label} = ${v.value_text}`;
+      return null;
+    })
+    .filter((l): l is string => l !== null);
+  if (lines.length === 0) return '';
+  return `USER CALIBRATIONS (per-user dose overrides — apply when the stack item matches):\n${lines.join('\n')}\n\n`;
 }

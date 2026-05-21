@@ -50,11 +50,32 @@ Hard rules — these matter:
    "energy was an 8" -> score 8.
    Descriptors are always captured when present.
 
-2. NUTRITION CONFIDENCE is mandatory.
+2. NUTRITION CONFIDENCE is mandatory, and so is a NUMERIC estimate.
    - "had a turkey sandwich" -> confidence "low", calories/macros are educated guesses.
    - "two scrambled eggs on toast with avocado" -> confidence "medium".
    - "8oz grilled chicken breast" -> confidence "high".
-   Voice calorie estimates are inherently rough (~20-30%). If you can't reasonably guess, return null fields and confidence "low".
+   ALWAYS return a best-effort number for protein_g, calories_kcal,
+   fiber_g, sugar_g, added_sugars_g. Null is reserved for cases where
+   the user mentions a food but you genuinely cannot guess a reasonable
+   range (rare — e.g. unknown brand-specific product with no descriptor).
+   "Confidence low" already tells the dashboard the number is rough;
+   null tells it the item was un-estimable, which is much worse and
+   leaves the day's totals incomplete. If the user gives ANY size cue
+   ("a small", "two inches", "half of", "spoonful"), use it.
+
+2a. TREATS / CANDY / DESSERTS / BAKED GOODS / SWEETENED DRINKS.
+    These ALWAYS contain sugar. Never return 0 or null for sugar on
+    these — estimate even if rough. Reference points:
+      "half a small candy bar (~2 in / 25g)" -> ~110 kcal, 11g sugar, 10g added
+      "full small candy bar (~50g)"          -> ~220 kcal, 22g sugar, 20g added
+      "half a cookie (medium)"                -> ~60 kcal, 5g sugar, 4g added
+      "slice of cake (~80g)"                  -> ~280 kcal, 28g sugar, 24g added
+      "scoop of ice cream (~70g)"             -> ~140 kcal, 14g sugar, 10g added
+      "donut (medium)"                        -> ~250 kcal, 14g sugar, 12g added
+      "soda can (355ml)"                      -> 140 kcal, 39g sugar, 39g added
+      "tablespoon of honey/maple syrup"       -> 60 kcal, 17g sugar, 17g added
+    "Enamel" / "coconut bar" / "chocolate bar" / "energy bar" / etc.
+    all count as candy unless context says otherwise.
 
 3. CANONICAL TAGS for food items use lowercase snake_case from this list when applicable:
    beans, rice, eggs, chicken, beef, fish, salmon, turkey, vegetables_mixed, leafy_greens,
@@ -130,6 +151,22 @@ Hard rules — these matter:
     macro profiles and the dashboard breakdown is more useful when each
     is attributed separately. Same logic for sweet additions
     (yogurt + honey -> two rows so added_sugars attribute to honey).
+
+3e. SHAKE CO-CONSUMPTION (mirror of supplement parser rule 10).
+    When the transcript mentions a protein shake — strict trigger,
+    literal word "shake" (or "smoothie" / "blend" in a clear drink
+    context) — the user also consumes collagen peptides and psyllium
+    husk. Emit food_items rows for ALL THREE even if collagen / psyllium
+    aren't explicitly named:
+      protein shake:     { protein_g: 24, calories_kcal: 120, water_ml: 300, sugar_g: 1, added_sugars_g: 0 }
+      collagen peptides: { protein_g: 9,  calories_kcal: 35,  water_ml: 0,   sugar_g: 0, added_sugars_g: 0 }
+      psyllium husk:     { fiber_g: 5,    water_ml: 0,        sugar_g: 0,    added_sugars_g: 0 }
+    Use USER CALIBRATIONS to override defaults when present
+    (e.g. protein_shake_g = 30 -> shake row gets protein_g: 30 instead
+    of 24). Bare "protein" without the word "shake" is NOT a trigger —
+    "protein wrap" / "protein bar" / "protein cookie" do not co-emit.
+    EXCEPT if the user explicitly says they skipped one ("had a shake
+    but skipped psyllium"), omit that item from food_items.
 
 4. SYMPTOMS: short snake_case strings only. Examples: headache, brain_fog, bloating,
    acid_reflux, joint_pain, fatigue, anxiety, nausea, congestion. Capture only when stated.
