@@ -13,7 +13,8 @@ Return JSON only. Schema:
       "fiber_g": number | null,
       "water_ml": number | null,
       "sugar_g": number | null,
-      "added_sugars_g": number | null
+      "added_sugars_g": number | null,
+      "carbs_g": number | null
     }
   ],
   "estimated_nutrition": {
@@ -22,6 +23,7 @@ Return JSON only. Schema:
     "fiber_g": number | null,
     "sugar_g": number | null,
     "added_sugars_g": number | null,
+    "carbs_g": number | null,
     "saturated_fat_present": boolean | null,
     "carb_timing": "morning" | "midday" | "evening" | "late_night" | null,
     "ultra_processed": boolean | null,
@@ -101,7 +103,7 @@ Hard rules — these matter:
       - anything with zero attributable calories / protein / fiber / water
 
 3b. PER-ITEM NUTRIENTS. Attribute each item's share into its row:
-      protein_g, calories_kcal, fiber_g, water_ml, sugar_g, added_sugars_g.
+      protein_g, calories_kcal, fiber_g, water_ml, sugar_g, added_sugars_g, carbs_g.
     The sums across food_items MUST match the entry-level
     estimated_nutrition totals and water_ml. If a nutrient can't be
     attributed to a specific item (e.g. a sauce shared across the plate),
@@ -118,6 +120,19 @@ Hard rules — these matter:
         psyllium:     { fiber_g: 5, water_ml: 0 }      -- already counted via creatine
       "cup of water with my creatine" ->
         creatine:     { water_ml: 295 }                -- the cup IS the implicit creatine water; do not double-count
+
+3c0. CARBS. carbs_g is TOTAL CARBOHYDRATE — the parent number that
+     INCLUDES sugar AND fiber AND starch. Sugar is a subset of carbs,
+     not separate. Never subtract sugar from carbs_g.
+     Examples:
+       "slice of whole-wheat bread"  -> carbs_g: 14, sugar_g: 2, fiber_g: 2
+       "can of coke (355ml)"          -> carbs_g: 39, sugar_g: 39, added_sugars_g: 39
+       "banana"                       -> carbs_g: 27, sugar_g: 14, fiber_g: 3
+       "cup of cooked oats"           -> carbs_g: 28, sugar_g: 1, fiber_g: 4
+       "8oz grilled chicken"          -> carbs_g: 0, sugar_g: 0
+       "olive oil 1 tbsp"             -> carbs_g: 0, sugar_g: 0
+     Populate for any food with carbohydrate. Default 0 (not null) for
+     pure protein/fat foods.
 
 3c. SUGAR. Always populate sugar_g (total sugars: natural + added) for any
     food that contains sugar. added_sugars_g is the SUBSET that's refined /

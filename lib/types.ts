@@ -14,6 +14,7 @@ export interface HealthLogParsed {
     water_ml: number | null;
     sugar_g: number | null;
     added_sugars_g: number | null;
+    carbs_g: number | null;
   }>;
   estimated_nutrition: {
     calories_kcal: number | null;
@@ -21,6 +22,7 @@ export interface HealthLogParsed {
     fiber_g: number | null;
     sugar_g: number | null;
     added_sugars_g: number | null;
+    carbs_g: number | null;
     saturated_fat_present: boolean | null;
     carb_timing: 'morning' | 'midday' | 'evening' | 'late_night' | null;
     ultra_processed: boolean | null;
