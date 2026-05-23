@@ -72,7 +72,10 @@ export async function parseHealthLog(
   return callHaiku({
     system: HEALTH_LOG_SYSTEM,
     user: healthLogUserPrompt(transcript, occurredAtIso, calibrations),
-    maxTokens: 1024,
+    // Big multi-item meals (10+ foods with per-item protein/cal/fiber/
+    // sugar/carbs attribution) blow past 1k tokens of JSON and truncate
+    // mid-object — the parse failure surfaces as "Expected ',' or '}'".
+    maxTokens: 4096,
   });
 }
 

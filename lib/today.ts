@@ -50,6 +50,7 @@ export interface TodaySummary {
   water_l: number;
   sugar_g: number;
   added_sugars_g: number;
+  carbs_g: number;
   energy_avg: number | null;
   mood_avg: number | null;
   entry_count: number;
@@ -69,6 +70,7 @@ export interface NutritionBreakdownRow {
   water_ml: number | null;
   sugar_g: number | null;
   added_sugars_g: number | null;
+  carbs_g: number | null;
 }
 
 export async function fetchTodayNutritionBreakdown(userId: string): Promise<NutritionBreakdownRow[]> {
@@ -77,7 +79,9 @@ export async function fetchTodayNutritionBreakdown(userId: string): Promise<Nutr
 
   const { data: hls } = await sb
     .from('health_logs')
-    .select('id, occurred_at, protein_g, calories_kcal, fiber_g, water_ml, sugar_g, added_sugars_g')
+    .select(
+      'id, occurred_at, protein_g, calories_kcal, fiber_g, water_ml, sugar_g, added_sugars_g, carbs_g',
+    )
     .eq('user_id', userId)
     .gte('occurred_at', startIso)
     .lt('occurred_at', endIso)
@@ -89,7 +93,7 @@ export async function fetchTodayNutritionBreakdown(userId: string): Promise<Nutr
   const { data: items } = await sb
     .from('food_log_items')
     .select(
-      'id, health_log_id, name, occurred_at, protein_g, calories_kcal, fiber_g, water_ml, sugar_g, added_sugars_g',
+      'id, health_log_id, name, occurred_at, protein_g, calories_kcal, fiber_g, water_ml, sugar_g, added_sugars_g, carbs_g',
     )
     .in('health_log_id', hlIds);
 
@@ -111,7 +115,8 @@ export async function fetchTodayNutritionBreakdown(userId: string): Promise<Nutr
         i.fiber_g != null ||
         i.water_ml != null ||
         i.sugar_g != null ||
-        i.added_sugars_g != null,
+        i.added_sugars_g != null ||
+        i.carbs_g != null,
     );
 
     if (anyPerItem) {
@@ -126,6 +131,7 @@ export async function fetchTodayNutritionBreakdown(userId: string): Promise<Nutr
           water_ml: it.water_ml == null ? null : Number(it.water_ml),
           sugar_g: it.sugar_g == null ? null : Number(it.sugar_g),
           added_sugars_g: it.added_sugars_g == null ? null : Number(it.added_sugars_g),
+          carbs_g: it.carbs_g == null ? null : Number(it.carbs_g),
         });
       }
     } else {
@@ -141,6 +147,7 @@ export async function fetchTodayNutritionBreakdown(userId: string): Promise<Nutr
         water_ml: hl.water_ml == null ? null : Number(hl.water_ml),
         sugar_g: hl.sugar_g == null ? null : Number(hl.sugar_g),
         added_sugars_g: hl.added_sugars_g == null ? null : Number(hl.added_sugars_g),
+        carbs_g: hl.carbs_g == null ? null : Number(hl.carbs_g),
       });
     }
   }
@@ -154,7 +161,7 @@ export async function fetchTodayForUser(userId: string): Promise<TodaySummary> {
   const { data: hl } = await sb
     .from('health_logs')
     .select(
-      'protein_g, calories_kcal, fiber_g, water_ml, sugar_g, added_sugars_g, energy_score, mood_score',
+      'protein_g, calories_kcal, fiber_g, water_ml, sugar_g, added_sugars_g, carbs_g, energy_score, mood_score',
     )
     .eq('user_id', userId)
     .gte('occurred_at', startIso)
@@ -173,6 +180,7 @@ export async function fetchTodayForUser(userId: string): Promise<TodaySummary> {
   let waterMl = 0;
   let sugar = 0;
   let addedSugar = 0;
+  let carbs = 0;
   const energies: number[] = [];
   const moods: number[] = [];
   for (const r of hl ?? []) {
@@ -182,6 +190,7 @@ export async function fetchTodayForUser(userId: string): Promise<TodaySummary> {
     waterMl += Number(r.water_ml ?? 0);
     sugar += Number(r.sugar_g ?? 0);
     addedSugar += Number(r.added_sugars_g ?? 0);
+    carbs += Number(r.carbs_g ?? 0);
     if (typeof r.energy_score === 'number') energies.push(r.energy_score);
     if (typeof r.mood_score === 'number') moods.push(r.mood_score);
   }
@@ -194,6 +203,7 @@ export async function fetchTodayForUser(userId: string): Promise<TodaySummary> {
     water_l: round(waterMl / 1000),
     sugar_g: round(sugar),
     added_sugars_g: round(addedSugar),
+    carbs_g: round(carbs),
     energy_avg: energies.length ? round(avg(energies)) : null,
     mood_avg: moods.length ? round(avg(moods)) : null,
     entry_count: count ?? 0,
