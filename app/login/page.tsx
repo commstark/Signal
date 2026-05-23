@@ -6,26 +6,48 @@ import { createSupabaseBrowser } from '@/lib/supabase/browser';
 
 function LoginInner() {
   const params = useSearchParams();
-  const proxyError = params.get('error');
   const [email, setEmail] = useState('');
-  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [code, setCode] = useState('');
+  const [step, setStep] = useState<'email' | 'code'>('email');
+  const [status, setStatus] = useState<'idle' | 'sending' | 'verifying' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
 
-  async function sendLink(e: React.FormEvent) {
+  async function sendCode(e: React.FormEvent) {
     e.preventDefault();
     setStatus('sending');
+    setErrorMsg('');
     const sb = createSupabaseBrowser();
-    const next = params.get('next') ?? '/';
-    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
     const { error } = await sb.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: redirectTo },
+      options: { shouldCreateUser: true },
     });
     if (error) {
       setErrorMsg(error.message);
       setStatus('error');
     } else {
-      setStatus('sent');
+      setStep('code');
+      setStatus('idle');
+    }
+  }
+
+  async function verifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    setStatus('verifying');
+    setErrorMsg('');
+    const sb = createSupabaseBrowser();
+    const { error } = await sb.auth.verifyOtp({
+      email,
+      token: code.trim(),
+      type: 'email',
+    });
+    if (error) {
+      setErrorMsg(error.message);
+      setStatus('error');
+    } else {
+      // Session cookies are now set; full navigation so server components
+      // pick up the authenticated session.
+      const next = params.get('next') ?? '/';
+      window.location.assign(next);
     }
   }
 
@@ -34,26 +56,15 @@ function LoginInner() {
       <div className="w-full max-w-sm space-y-6">
         <div>
           <h1 className="text-h1">signal</h1>
-          <p className="text-small text-ink-2 mt-1">enter your email to sign in.</p>
+          <p className="text-small text-ink-2 mt-1">
+            {step === 'email'
+              ? 'enter your email to sign in.'
+              : `enter the 6-digit code sent to ${email}.`}
+          </p>
         </div>
 
-        {proxyError === 'env' && (
-          <p className="text-small text-signal-red font-mono">
-            server config missing supabase env vars. check vercel project settings.
-          </p>
-        )}
-        {proxyError === 'auth' && (
-          <p className="text-small text-signal-red font-mono">
-            could not contact supabase. check the project url + anon key.
-          </p>
-        )}
-
-        {status === 'sent' ? (
-          <p className="text-body text-ink-2">
-            check your email. open the link on this device.
-          </p>
-        ) : (
-          <form onSubmit={sendLink} className="space-y-3">
+        {step === 'email' ? (
+          <form onSubmit={sendCode} className="space-y-3">
             <input
               type="email"
               required
@@ -67,7 +78,42 @@ function LoginInner() {
               disabled={status === 'sending'}
               className="w-full h-11 bg-accent text-accent-fg rounded text-body font-medium disabled:opacity-60"
             >
-              {status === 'sending' ? 'sending…' : 'send magic link'}
+              {status === 'sending' ? 'sending…' : 'send code'}
+            </button>
+            {status === 'error' && (
+              <p className="text-small text-signal-red">{errorMsg}</p>
+            )}
+          </form>
+        ) : (
+          <form onSubmit={verifyCode} className="space-y-3">
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              required
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="123456"
+              className="w-full h-11 px-3 bg-transparent border border-line rounded text-body tracking-[0.3em] focus:border-ink focus:outline-none"
+            />
+            <button
+              type="submit"
+              disabled={status === 'verifying'}
+              className="w-full h-11 bg-accent text-accent-fg rounded text-body font-medium disabled:opacity-60"
+            >
+              {status === 'verifying' ? 'verifying…' : 'verify & sign in'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setStep('email');
+                setCode('');
+                setStatus('idle');
+                setErrorMsg('');
+              }}
+              className="w-full text-small text-ink-2 underline"
+            >
+              use a different email
             </button>
             {status === 'error' && (
               <p className="text-small text-signal-red">{errorMsg}</p>
