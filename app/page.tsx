@@ -23,11 +23,20 @@ interface Capture {
 
 const MAX_VISIBLE = 5;
 
+interface PrefsHint {
+  term: string;
+  phrase: string;
+}
+
 function HomeInner() {
   const params = useSearchParams();
   const autoLaunch = params.get('mode') === 'auto';
 
   const [captures, setCaptures] = useState<Capture[]>([]);
+  // Surfaced when a food log used a vague portion the user hasn't pinned
+  // down yet. Re-fires on every vague log until they save a preference
+  // (the server only sends it while no matching calibration exists).
+  const [prefsTip, setPrefsTip] = useState<PrefsHint | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -104,8 +113,13 @@ function HomeInner() {
             const body = await px.json().catch(() => null);
             throw new Error(body?.error ?? `parse failed: ${px.status}`);
           }
-          const p = (await px.json()) as { entry_id: string; intent: string };
+          const p = (await px.json()) as {
+            entry_id: string;
+            intent: string;
+            prefs_hint?: PrefsHint | null;
+          };
           update(id, { status: 'saved', entryId: p.entry_id, intent: p.intent });
+          if (p.prefs_hint) setPrefsTip(p.prefs_hint);
         } catch (e) {
           update(id, { status: 'failed', error: e instanceof Error ? e.message : 'failed' });
         }
@@ -125,7 +139,11 @@ function HomeInner() {
         <Link href="/ask" className="text-small text-ink-2 hover:text-ink font-mono">
           ask
         </Link>
-        <Link href="/today" className="text-small text-ink-2 hover:text-ink font-mono">
+        <Link
+          href="/today"
+          className="text-small text-ink-2 hover:text-ink font-mono"
+          data-tour="today-link"
+        >
           today
         </Link>
       </header>
@@ -149,6 +167,26 @@ function HomeInner() {
           <div className="w-full space-y-2">
             <p className="text-micro text-ink-3 uppercase tracking-wide">latest transcript</p>
             <TranscriptEditor entryId={latestSaved.entryId!} initial={latestSaved.transcript!} />
+          </div>
+        )}
+
+        {prefsTip && (
+          <div className="w-full flex items-start gap-2 text-small text-ink-2 leading-snug">
+            <span className="font-mono text-micro uppercase tracking-wide text-ink-3 mt-0.5 shrink-0">
+              prefs
+            </span>
+            <p className="flex-1">
+              you said &ldquo;{prefsTip.phrase}&rdquo;. tell me once —{' '}
+              <span className="text-ink">&ldquo;from now on a {prefsTip.term} is …&rdquo;</span> — and
+              I&rsquo;ll use it every time.
+            </p>
+            <button
+              onClick={() => setPrefsTip(null)}
+              aria-label="dismiss"
+              className="text-ink-3 hover:text-ink shrink-0 leading-none"
+            >
+              ×
+            </button>
           </div>
         )}
 

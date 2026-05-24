@@ -1,11 +1,7 @@
 # Signal — session notes for Claude
 
 ## Pending setup tasks
-- **Install Supabase MCP server.** From your laptop:
-  ```
-  npx -y @supabase/mcp-server-supabase --access-token <PAT> --project-ref ignnedeffcygciarskua
-  ```
-  Then add to Claude Code settings.json and restart. This gives Claude direct read/write access to the DB so we stop pasting SQL back and forth.
+- **Supabase MCP server is installed and working** (project-ref `ignnedeffcygciarskua`). Claude has direct read/write DB access — no more pasting SQL back and forth.
 - **Custom SMTP in Supabase** (Resend) to kill the magic-link rate limit.
 - **Drop unused legacy tables** when convenient: `agents`, `agent_conversations`, `agent_messages`, `bloodwork_predictions`.
 

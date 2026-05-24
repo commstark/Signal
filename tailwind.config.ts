@@ -38,8 +38,18 @@ const config: Config = {
         'record-pulse': 'recordPulse 1.2s ease-in-out infinite',
         'dot-pulse': 'dotPulse 1.6s ease-in-out infinite',
         'transcribing': 'transcribing 0.4s steps(4) infinite',
+        'tour-pulse': 'tourPulse 1.2s ease-in-out infinite',
+        'tour-ripple': 'tourRipple 0.6s ease-out forwards',
       },
       keyframes: {
+        tourPulse: {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.35' },
+        },
+        tourRipple: {
+          '0%': { transform: 'scale(1)', opacity: '0.8' },
+          '100%': { transform: 'scale(2.2)', opacity: '0' },
+        },
         recordPulse: {
           '0%, 100%': { filter: 'brightness(1)' },
           '50%': { filter: 'brightness(1.03)' },
