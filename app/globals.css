@@ -13,6 +13,8 @@
     --accent: #FAFAFA;
     --accent-fg: #0A0A0A;
     --signal-red: #EF4444;
+    --signal-green: #22C55E;
+    --signal-orange: #F97316;
   }
 
   :root.light {
@@ -25,6 +27,8 @@
     --accent: #0A0A0A;
     --accent-fg: #FAFAFA;
     --signal-red: #DC2626;
+    --signal-green: #16A34A;
+    --signal-orange: #EA580C;
   }
 
   html,

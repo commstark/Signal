@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { RecordButton } from '@/components/RecordButton';
 import { TranscriptEditor } from '@/components/TranscriptEditor';
 import { AskLaterInput } from '@/components/AskLaterInput';
+import { StatusDot, type StatusTone } from '@/components/StatusDot';
 import { enqueueCapture } from '@/lib/offline-queue';
 
 type CaptureStatus = 'transcribing' | 'parsing' | 'saved' | 'failed' | 'queued';
@@ -201,14 +202,15 @@ function ExampleHints() {
   );
 }
 
-function CaptureRow({ capture }: { capture: Capture }) {
-  const dotClass =
-    capture.status === 'failed'
-      ? 'bg-signal-red'
-      : capture.status === 'saved' || capture.status === 'queued'
-      ? 'bg-ink-2'
-      : 'bg-[#EAB308] animate-pulse';
+const CAPTURE_TONE: Record<CaptureStatus, StatusTone> = {
+  transcribing: 'progress',
+  parsing: 'progress',
+  saved: 'done',
+  queued: 'idle',
+  failed: 'error',
+};
 
+function CaptureRow({ capture }: { capture: Capture }) {
   const label = (() => {
     switch (capture.status) {
       case 'transcribing':
@@ -218,7 +220,7 @@ function CaptureRow({ capture }: { capture: Capture }) {
       case 'queued':
         return 'queued (offline)';
       case 'saved':
-        return `saved · ${capture.intent?.replace(/_/g, ' ') ?? 'ok'}`;
+        return `done · ${capture.intent?.replace(/_/g, ' ') ?? 'ok'}`;
       case 'failed':
         return capture.error ?? 'failed';
     }
@@ -226,7 +228,7 @@ function CaptureRow({ capture }: { capture: Capture }) {
 
   return (
     <li className="flex items-center gap-3 text-small font-mono text-ink-2">
-      <span className={`inline-block w-2 h-2 rounded-full ${dotClass}`} />
+      <StatusDot tone={CAPTURE_TONE[capture.status]} />
       <span className={capture.status === 'failed' ? 'text-signal-red' : ''}>{label}</span>
     </li>
   );

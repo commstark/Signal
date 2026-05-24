@@ -15,6 +15,8 @@ const config: Config = {
         accent: 'var(--accent)',
         'accent-fg': 'var(--accent-fg)',
         'signal-red': 'var(--signal-red)',
+        'signal-green': 'var(--signal-green)',
+        'signal-orange': 'var(--signal-orange)',
       },
       fontFamily: {
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],

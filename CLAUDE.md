@@ -11,7 +11,11 @@
 
 ## Open design discussions
 - **Workout schema upgrade for cross-analysis.** Current `exercises[]` + `sets[]` shape loses signal for cardio (skipping), isometric holds (dead hangs), incidents (pulled muscle / cut short). Proposed additions: `exercise_type` enum (strength | cardio | conditioning | mobility | isometric), `duration_s` / `distance_m` / `count` on sets, `incident` on session, denormalized `volume_lb` per session per muscle_group.
-- **`parse_status` column on `entries`** (`ok | partial | failed`) so orphan entries (transcript saved, structured write failed) are visible in the UI instead of looking "logged".
+
+## UI principles
+- **Teach the app through small, ambient visuals — not manuals or walls of text.** Prefer showing state over telling. Status dots, inline example prompts, micro-affordances, empty-state hints. The user should learn how the app works by using it and watching it respond, never by reading instructions. (This is a standing goal — see global core memory.)
+- **Parse-status vocabulary** (one set of colors everywhere, via `components/StatusDot.tsx`): orange + pulse = working (transcribing/parsing/`pending`), green = done (`ok`/saved), amber = `partial`, red = `failed`, grey = idle/queued. Used on the recording screen (`app/page.tsx`) and `/today`.
+- `parse_status` on `entries` (`pending | ok | partial | failed`) is **implemented** and surfaced via the dot vocabulary above, so orphan entries (transcript saved, structured write failed) no longer look "logged". `/today` polls (`PendingRefresher`) so a `pending` dot flips orange→green on its own.
 
 ## Production URL
 https://signal-seven-rose.vercel.app — back-tap / Action Button Shortcut should open the bare URL (no `?mode=auto`; redundant).

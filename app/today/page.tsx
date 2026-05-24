@@ -8,10 +8,13 @@ import {
   fetchTodaySupplements,
   fetchTodayNutritionBreakdown,
   type TodaySupplementItem,
+  type TodayEntry,
 } from '@/lib/today';
 import { Stat } from '@/components/Stat';
 import { NutritionTile } from '@/components/NutritionTile';
 import { TranscriptEditor } from '@/components/TranscriptEditor';
+import { StatusDot, type StatusTone } from '@/components/StatusDot';
+import { PendingRefresher } from '@/components/PendingRefresher';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,8 +28,11 @@ export default async function TodayPage() {
     fetchTodayNutritionBreakdown(user.id),
   ]);
 
+  const hasPending = entries.some((e) => e.parse_status === 'pending');
+
   return (
     <main className="min-h-dvh pb-8">
+      <PendingRefresher active={hasPending} />
       <header className="px-4 py-4 flex items-baseline justify-between">
         <div className="flex items-center gap-3">
           <Link href="/" className="text-ink-2 hover:text-ink" aria-label="back">
@@ -190,12 +196,18 @@ export default async function TodayPage() {
                     ? 'border-signal-red'
                     : e.parse_status === 'partial'
                     ? 'border-yellow-500'
+                    : e.parse_status === 'pending'
+                    ? 'border-signal-orange'
                     : 'border-line'
                 }`}
               >
                 <div className="text-micro font-mono text-ink-3 uppercase tracking-wide flex gap-3 items-center">
+                  <StatusDot tone={entryTone(e.parse_status)} label={entryStatusLabel(e.parse_status)} />
                   <span>{formatTime(e.occurred_at)}</span>
                   <span>{e.intent.replace(/_/g, ' ')}</span>
+                  {e.parse_status === 'pending' && (
+                    <span className="text-signal-orange">parsing…</span>
+                  )}
                   {e.parse_status === 'partial' && (
                     <span className="text-yellow-500">partial</span>
                   )}
@@ -225,6 +237,33 @@ export default async function TodayPage() {
       </section>
     </main>
   );
+}
+
+function entryTone(status: TodayEntry['parse_status']): StatusTone {
+  switch (status) {
+    case 'pending':
+      return 'progress';
+    case 'partial':
+      return 'warn';
+    case 'failed':
+      return 'error';
+    // 'ok' and legacy null entries are done.
+    default:
+      return 'done';
+  }
+}
+
+function entryStatusLabel(status: TodayEntry['parse_status']): string {
+  switch (status) {
+    case 'pending':
+      return 'parsing';
+    case 'partial':
+      return 'partial';
+    case 'failed':
+      return 'failed';
+    default:
+      return 'done';
+  }
 }
 
 function SupplementGroup({ label, items }: { label: string; items: TodaySupplementItem[] }) {
