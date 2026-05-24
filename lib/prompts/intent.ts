@@ -28,7 +28,14 @@ Return JSON only, no prose. Schema:
 Rules:
 - "health_log": food, mood, energy, symptoms, water, general how-I-feel.
 - "workout_log": exercises, sets, reps, weight, BJJ rounds, lifts.
-- "supplement_log": "took/skipped" a known supplement or stack.
+- "supplement_log": "took/skipped" a known supplement or stack — AND the
+   transcript has no other content (no food, water, mood, etc.). Pills
+   typically go down with a cup of water, so a bare "took my vitamins" or
+   "took my morning/day/sleep stack" should be classified as "mixed"
+   instead, so the health parser can credit the implicit water (and, for
+   the day stack, the olive oil it includes). Only use "supplement_log"
+   when neither water nor calories can apply (e.g. "I forgot to take my
+   stack today", "skipped magnesium").
 - "intervention_start": "starting X today", "adding X to my stack", "trying X".
 - "intervention_stop": "stopping X", "quit X", "off X today".
 - "preference_set": the user is establishing a PERMANENT personal rule —

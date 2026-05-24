@@ -97,10 +97,19 @@ Hard rules — these matter:
         mix it into a protein shake or into a cup of water that's already
         being counted elsewhere)
       - greens powder (calories + fiber if stated)
+      - olive oil (~120 kcal/tbsp; default 1 tbsp unless stated otherwise)
     EXCLUDE from food_items:
       - "morning vitamin stack", "sleep stack", "took my vitamins"
       - individual micronutrient pills: "Vitamin D3", "magnesium", "zinc"
       - anything with zero attributable calories / protein / fiber / water
+    SPECIAL CASE — "day stack" / "vitamin stack" / "day vitamins":
+      the user's day stack INCLUDES olive oil. When the transcript implies
+      the day/vitamin stack was taken, emit a food_items row:
+        olive oil: { calories_kcal: 120, water_ml: 0 }  (canonical_tag: "olive_oil")
+      Other day_stack items (creatine, psyllium, shake) only get rows if
+      explicitly mentioned per existing rules. Confidence stays "low".
+      Note: this is scoped to the DAY stack only — a "morning stack" or
+      "sleep stack" gets implicit water but NO olive oil.
 
 3b. PER-ITEM NUTRIENTS. Attribute each item's share into its row:
       protein_g, calories_kcal, fiber_g, water_ml, sugar_g, added_sugars_g, carbs_g.
@@ -204,6 +213,8 @@ Hard rules — these matter:
      transcript mentions the trigger, even if water isn't stated:
        protein shake          -> +300 ml
        creatine               -> +295 ml  (1 user cup)
+       took vitamins / stack / multivitamin / supplements
+                              -> +295 ml  (pills go down with a cup of water)
        glycine                -> +295 ml  (1 user cup)
        "water bottle"         -> +500 ml  (default size unless stated)
    - Sum implicit and explicit water. "Had a protein shake and a
