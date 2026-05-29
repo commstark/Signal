@@ -77,18 +77,16 @@ export function TranscriptEditor({ entryId, initial, onSaved }: Props) {
           <button
             onClick={() => runParse(savedText)}
             disabled={status === 'saving'}
-            className="text-micro text-ink-3 font-mono hover:text-ink-2 disabled:opacity-50"
+            className="text-micro text-ink-3 hover:text-ink-2 disabled:opacity-50"
           >
-            re-parse
+            Re-parse
           </button>
-          {status === 'saving' && (
-            <span className="text-micro text-ink-3 font-mono">saving…</span>
-          )}
+          {status === 'saving' && <span className="text-micro text-ink-3">Saving…</span>}
           {status === 'saved' && (
-            <span className="text-micro text-ink-3 font-mono">saved · re-parsed</span>
+            <span className="text-micro text-ink-3">Saved · re-parsed</span>
           )}
           {status === 'error' && errorMsg && (
-            <span className="text-micro text-signal-red font-mono">{errorMsg}</span>
+            <span className="text-micro text-signal-red">{errorMsg}</span>
           )}
         </div>
       </div>
@@ -112,7 +110,7 @@ export function TranscriptEditor({ entryId, initial, onSaved }: Props) {
           disabled={status === 'saving'}
           className="h-10 px-4 bg-accent text-accent-fg rounded-xl text-small font-semibold disabled:opacity-60"
         >
-          {status === 'saving' ? 'saving…' : 'done · re-parse'}
+          {status === 'saving' ? 'Saving…' : 'Done · re-parse'}
         </button>
         <button
           onClick={() => {
@@ -121,11 +119,9 @@ export function TranscriptEditor({ entryId, initial, onSaved }: Props) {
           }}
           className="h-10 px-4 border border-line rounded-xl text-small"
         >
-          cancel
+          Cancel
         </button>
-        <span className="text-micro text-ink-3 font-mono ml-auto">
-          tap outside or done
-        </span>
+        <span className="text-micro text-ink-3 ml-auto">Tap outside or Done</span>
       </div>
     </div>
   );

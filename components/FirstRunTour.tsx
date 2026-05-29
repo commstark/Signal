@@ -40,81 +40,81 @@ interface Scene {
 const SCENES: Scene[] = [
   {
     route: '/',
-    caption: 'tap the yellow button to start recording.',
+    caption: 'Tap the yellow button to start recording.',
     highlightTarget: 'record-button',
   },
   {
     route: '/',
-    caption: 'now you’re recording. say something like — “two scoops of whey and a turkey sandwich.” (food)',
+    caption: 'Now you’re recording. Say something like — “Two scoops of whey and a turkey sandwich.” (food)',
     fauxButton: 'recording',
   },
   {
     route: '/',
-    caption: 'or a workout — “benched 225 for six, three sets.”',
+    caption: 'Or a workout — “Benched 225 for six, three sets.”',
     fauxButton: 'recording',
   },
   {
     route: '/',
-    caption: 'or supplements — “took my morning vitamin stack.”',
+    caption: 'Or supplements — “Took my morning vitamin stack.”',
     fauxButton: 'recording',
   },
   {
     route: '/',
-    caption: 'or a calibration — “from now on a glass is 295ml.” (we use it forever after.)',
+    caption: 'Or a calibration — “From now on a glass is 295ml.” (We use it forever after.)',
     fauxButton: 'recording',
   },
   {
     route: '/',
-    caption: 'tap the red button to stop when you’re done.',
+    caption: 'Tap the red button to stop when you’re done.',
     fauxButton: 'recording',
   },
   {
     route: '/',
-    caption: 'we transcribe, parse, and tag what you said.',
+    caption: 'We transcribe, parse, and tag what you said.',
     fauxButton: 'idle',
     ghost: {
       intent: 'food',
-      transcript: 'two scoops of whey and a turkey sandwich.',
+      transcript: 'Two scoops of whey and a turkey sandwich.',
       playSequence: true,
     },
   },
   {
     route: '/',
-    caption: 'got something wrong? tap the transcript to edit — we’ll re-parse the numbers.',
+    caption: 'Got something wrong? Tap the transcript to edit — we’ll re-parse the numbers.',
     fauxEditor: {
-      initial: 'two scoops of whey and a turkey sandwich.',
+      initial: 'Two scoops of whey and a turkey sandwich.',
       edit: { from: 'turkey', to: 'ham' },
     },
   },
   {
     route: '/',
-    caption: 'now it lives in today. tap to see how it adds up.',
+    caption: 'Now it lives in Today. Tap to see how it adds up.',
     highlightTarget: 'today-link',
   },
   {
     route: '/today',
-    caption: 'today — your day, totaled.',
+    caption: 'Today — your day, totaled.',
     scrollTo: 'top',
   },
   {
     route: '/today',
-    caption: 'tap any tile to see the breakdown.',
+    caption: 'Tap any tile to see the breakdown.',
     highlightTarget: 'tile-protein',
   },
   {
     route: '/today',
-    caption: 'every gram traced back to what you ate. water, carbs, fiber, and sugar all work the same.',
-    fauxBreakdown: { field: 'protein_g', label: 'protein', value: '76g' },
+    caption: 'Every gram traced back to what you ate. Water, carbs, fiber, and sugar all work the same.',
+    fauxBreakdown: { field: 'protein_g', label: 'Protein', value: '76g' },
   },
   {
     route: '/today',
-    caption: 'workouts roll up here — sets, top set, duration.',
+    caption: 'Workouts roll up here — sets, top set, duration.',
     scrollTo: 'workouts',
     highlightTarget: 'workouts',
   },
   {
     route: '/today',
-    caption: 'tap back any time to keep logging.',
+    caption: 'Tap back any time to keep logging.',
     scrollTo: 'top',
     highlightTarget: 'back-link',
   },
@@ -244,26 +244,28 @@ export function FirstRunTour() {
     clearTimers();
 
     if (scene.ghost) {
+      const intentTitle =
+        scene.ghost.intent.charAt(0).toUpperCase() + scene.ghost.intent.slice(1);
       if (scene.ghost.playSequence && !reduced.current) {
         setGhostTone('progress');
-        setGhostLabel('transcribing…');
+        setGhostLabel('Transcribing…');
         setShowTranscript(false);
         timers.current.push(
           setTimeout(() => {
             setGhostTone('progress');
-            setGhostLabel('parsing…');
+            setGhostLabel('Parsing…');
           }, 1300),
         );
         timers.current.push(
           setTimeout(() => {
             setGhostTone('done');
-            setGhostLabel(`done · ${scene.ghost!.intent}`);
+            setGhostLabel(`Done · ${intentTitle}`);
             setShowTranscript(true);
           }, 2700),
         );
       } else {
         setGhostTone('done');
-        setGhostLabel(`done · ${scene.ghost.intent}`);
+        setGhostLabel(`Done · ${intentTitle}`);
         setShowTranscript(true);
       }
     }
@@ -462,7 +464,7 @@ export function FirstRunTour() {
           className="absolute left-1/2 top-[34%] w-[min(26rem,90vw)] -translate-x-1/2 -translate-y-1/2 rounded-3xl bg-surface p-5 shadow-soft-lg space-y-2"
           style={{ pointerEvents: 'none' }}
         >
-          <p className="text-micro text-ink-3 uppercase tracking-wide">latest transcript</p>
+          <p className="text-micro text-ink-3 uppercase tracking-wide">Latest transcript</p>
           {editorMode === 'editing' ? (
             <div className="space-y-2">
               <div className="w-full p-4 bg-surface border border-ink rounded-xl text-body min-h-[3rem]">
@@ -470,13 +472,13 @@ export function FirstRunTour() {
                 <span className="inline-block w-[2px] h-[1em] bg-ink ml-0.5 align-middle animate-tour-pulse" />
               </div>
               <span className="inline-flex h-10 px-4 items-center bg-accent text-accent-fg rounded-xl text-small font-semibold">
-                done · re-parse
+                Done · re-parse
               </span>
             </div>
           ) : (
             <div className="space-y-1">
               <div className="text-body text-ink">{editText}</div>
-              <span className="text-micro text-ink-3 font-mono">re-parse</span>
+              <span className="text-micro text-ink-3">Re-parse</span>
             </div>
           )}
         </div>
@@ -529,7 +531,7 @@ export function FirstRunTour() {
           disabled={step === 0}
           className="text-micro font-mono text-ink-2 disabled:text-ink-3 disabled:cursor-not-allowed hover:text-ink px-2.5 py-1 whitespace-nowrap"
         >
-          ‹ back
+          ‹ Back
         </button>
         <span className="text-micro font-mono text-ink-3 px-1 whitespace-nowrap tabular-nums">
           {step + 1} / {SCENES.length}
@@ -538,7 +540,7 @@ export function FirstRunTour() {
           onClick={goNext}
           className="text-micro font-mono bg-accent text-accent-fg rounded-full px-3 py-1 hover:opacity-90 whitespace-nowrap"
         >
-          {isLast ? 'done' : 'next ›'}
+          {isLast ? 'Done' : 'Next ›'}
         </button>
       </div>
 
@@ -547,7 +549,7 @@ export function FirstRunTour() {
         className="absolute top-4 right-4 text-micro font-mono text-ink-3 hover:text-ink underline underline-offset-4"
         style={{ pointerEvents: 'auto' }}
       >
-        skip
+        Skip
       </button>
     </div>
   );

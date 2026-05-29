@@ -56,6 +56,7 @@ const config: Config = {
         'transcribing': 'transcribing 0.4s steps(4) infinite',
         'tour-pulse': 'tourPulse 1.2s ease-in-out infinite',
         'tour-ripple': 'tourRipple 0.6s ease-out forwards',
+        'tour-wave': 'tourWave 0.9s ease-in-out infinite',
       },
       keyframes: {
         tourPulse: {
@@ -65,6 +66,10 @@ const config: Config = {
         tourRipple: {
           '0%': { transform: 'scale(1)', opacity: '0.8' },
           '100%': { transform: 'scale(2.2)', opacity: '0' },
+        },
+        tourWave: {
+          '0%, 100%': { transform: 'scaleY(0.35)' },
+          '50%': { transform: 'scaleY(1)' },
         },
         recordPulse: {
           '0%, 100%': { filter: 'brightness(1)' },

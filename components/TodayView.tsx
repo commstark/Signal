@@ -40,20 +40,20 @@ export function TodayView({
       {!demo && <PendingRefresher active={hasPending} />}
       <header className="px-4 py-4 flex items-baseline justify-between">
         <div className="flex items-center gap-3">
-          <Link href="/" className="text-ink-2 hover:text-ink" aria-label="back" data-tour="back-link">
+          <Link href="/" className="text-ink-2 hover:text-ink" aria-label="Back" data-tour="back-link">
             <ArrowLeft size={18} />
           </Link>
           <div>
-            <h1 className="text-h2">today</h1>
-            <p className="text-small text-ink-2 font-mono">{formatTodayLabel()} · pst</p>
+            <h1 className="text-h2">Today</h1>
+            <p className="text-small text-ink-2 font-mono">{formatTodayLabel()} · PST</p>
           </div>
         </div>
         <div className="flex items-baseline gap-4">
           <Link href="/ask" className="text-small text-ink-2 hover:text-ink font-mono">
-            ask
+            Ask
           </Link>
           <Link href="/settings" className="text-small text-ink-2 hover:text-ink">
-            settings
+            Settings
           </Link>
         </div>
       </header>
@@ -120,9 +120,9 @@ export function TodayView({
       </section>
 
       <section className="px-4 mt-8" data-tour="workouts">
-        <h2 className="text-h3 mb-3">workouts</h2>
+        <h2 className="text-h3 mb-3">Workouts</h2>
         {workouts.exercises.length === 0 && workouts.session_count === 0 ? (
-          <p className="text-body text-ink-2">no workouts today.</p>
+          <p className="text-body text-ink-2">No workouts today.</p>
         ) : (
           <div className="space-y-3">
             <p className="text-small text-ink-2 font-mono">
@@ -163,7 +163,7 @@ export function TodayView({
       </section>
 
       <section className="px-4 mt-8">
-        <h2 className="text-h3 mb-3">supplements</h2>
+        <h2 className="text-h3 mb-3">Supplements</h2>
         <SupplementGroup label="morning" items={supplements.morning} />
         <SupplementGroup label="day" items={supplements.day} />
         <SupplementGroup label="night" items={supplements.night} />
@@ -185,9 +185,9 @@ export function TodayView({
       </section>
 
       <section className="px-4 mt-8">
-        <h2 className="text-h3 mb-3">log</h2>
+        <h2 className="text-h3 mb-3">Log</h2>
         {entries.length === 0 ? (
-          <p className="text-body text-ink-2">no entries today.</p>
+          <p className="text-body text-ink-2">No entries today.</p>
         ) : (
           <ul className="space-y-4">
             {entries.map((e) => (
@@ -207,9 +207,9 @@ export function TodayView({
                   <StatusDot tone={entryTone(e.parse_status)} label={entryStatusLabel(e.parse_status)} />
                   <span>{formatTime(e.occurred_at)}</span>
                   <span>{e.intent.replace(/_/g, ' ')}</span>
-                  {e.parse_status === 'pending' && <span className="text-signal-orange">parsing…</span>}
-                  {e.parse_status === 'partial' && <span className="text-yellow-500">partial</span>}
-                  {e.parse_status === 'failed' && <span className="text-signal-red">failed</span>}
+                  {e.parse_status === 'pending' && <span className="text-signal-orange">Parsing…</span>}
+                  {e.parse_status === 'partial' && <span className="text-yellow-500">Partial</span>}
+                  {e.parse_status === 'failed' && <span className="text-signal-red">Failed</span>}
                 </div>
                 <div className="mt-1">
                   <TranscriptEditor entryId={e.id} initial={e.transcript} />
@@ -249,13 +249,13 @@ function entryTone(status: TodayEntry['parse_status']): StatusTone {
 function entryStatusLabel(status: TodayEntry['parse_status']): string {
   switch (status) {
     case 'pending':
-      return 'parsing';
+      return 'Parsing';
     case 'partial':
-      return 'partial';
+      return 'Partial';
     case 'failed':
-      return 'failed';
+      return 'Failed';
     default:
-      return 'done';
+      return 'Done';
   }
 }
 

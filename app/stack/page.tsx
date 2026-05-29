@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 
 interface StackItem {
   id: string;
@@ -25,12 +26,12 @@ interface PrefItem {
 
 const GROUP_OPTIONS: Array<{ value: string; label: string }> = [
   { value: '', label: '—' },
-  { value: 'morning_stack', label: 'morning' },
-  { value: 'day_stack', label: 'day' },
-  { value: 'sleep_stack', label: 'sleep' },
+  { value: 'morning_stack', label: 'Morning' },
+  { value: 'day_stack', label: 'Day' },
+  { value: 'sleep_stack', label: 'Sleep' },
 ];
 
-export default function SettingsPage() {
+export default function AccountPage() {
   const [stack, setStack] = useState<StackItem[] | null>(null);
   const [prefs, setPrefs] = useState<PrefItem[] | null>(null);
 
@@ -48,18 +49,24 @@ export default function SettingsPage() {
   }, [loadAll]);
 
   return (
-    <main className="min-h-dvh flex flex-col">
-      <header className="p-4 flex justify-between items-center">
-        <Link href="/" className="text-small text-ink-2 hover:text-ink font-mono">
-          ← back
+    <main className="min-h-dvh pb-12">
+      <header className="px-4 py-4">
+        <Link
+          href="/"
+          className="text-small text-ink-2 hover:text-ink inline-flex items-center gap-1.5"
+        >
+          <ArrowLeft size={16} /> Back
         </Link>
-        <h1 className="text-small font-mono text-ink-2">your account</h1>
-        <span className="w-12" />
+        <h1 className="text-h1 mt-3">Account</h1>
       </header>
 
-      <div className="flex-1 px-4 max-w-xl mx-auto w-full space-y-10 pb-12">
-        <p className="text-small text-ink-2">
-          add or edit anything below by tapping a row. to add by voice, go back home and speak naturally — e.g. <span className="font-mono">&quot;from now on I take 400 IU vitamin E in the morning&quot;</span>.
+      <div className="flex-1 px-4 max-w-xl mx-auto w-full space-y-10">
+        <p className="text-small text-ink-2 leading-relaxed">
+          Add or edit anything below by tapping a row. To add by voice, go home and speak
+          naturally — e.g.{' '}
+          <span className="text-ink">
+            &ldquo;From now on I take 400 IU vitamin E in the morning.&rdquo;
+          </span>
         </p>
 
         <StackSection items={stack} reload={loadAll} />
@@ -81,23 +88,26 @@ function StackSection({
   return (
     <section className="space-y-3">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-h2">vitamin stack</h2>
+        <h2 className="text-h2">Vitamin stack</h2>
         <button
           onClick={() => setAdding(true)}
-          className="text-small font-mono text-ink-2 hover:text-ink"
+          className="text-small text-ink-2 hover:text-ink"
         >
-          + add
+          + Add
         </button>
       </div>
 
       {items === null ? (
-        <p className="text-small font-mono text-ink-3">loading…</p>
+        <p className="text-small text-ink-3">Loading…</p>
       ) : items.length === 0 && !adding ? (
-        <p className="text-small text-ink-2">
-          nothing here yet. say something like <span className="font-mono">&quot;from now on I take 5g creatine in the morning&quot;</span> on the home page.
+        <p className="text-small text-ink-2 leading-relaxed">
+          Nothing here yet. Say something like{' '}
+          <span className="text-ink">
+            &ldquo;From now on I take 5g creatine in the morning.&rdquo;
+          </span>
         </p>
       ) : (
-        <ul className="list-none space-y-1">
+        <ul className="rounded-2xl bg-surface shadow-soft divide-y divide-line overflow-hidden">
           {items.map((it) => (
             <StackRow key={it.id} item={it} reload={reload} />
           ))}
@@ -144,7 +154,7 @@ function StackRow({
 
   async function save() {
     if (!draft.name.trim()) {
-      setErr('name required');
+      setErr('Name required.');
       return;
     }
     setBusy(true);
@@ -163,12 +173,12 @@ function StackRow({
       });
       if (!r.ok) {
         const b = await r.json().catch(() => null);
-        throw new Error(b?.error ?? `save failed: ${r.status}`);
+        throw new Error(b?.error ?? `Save failed: ${r.status}`);
       }
       setEditing(false);
       await reload();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'save failed');
+      setErr(e instanceof Error ? e.message : 'Save failed.');
     } finally {
       setBusy(false);
     }
@@ -179,7 +189,7 @@ function StackRow({
       onCancel?.();
       return;
     }
-    if (!confirm(`remove ${item.name} from your stack?`)) return;
+    if (!confirm(`Remove ${item.name} from your stack?`)) return;
     setBusy(true);
     try {
       await fetch('/api/stack/delete', {
@@ -197,44 +207,40 @@ function StackRow({
     return (
       <li
         onClick={() => setEditing(true)}
-        className="flex items-baseline justify-between text-body cursor-pointer hover:bg-line/20 -mx-2 px-2 py-1.5 rounded"
+        className="flex flex-col gap-1 px-4 py-3 cursor-pointer hover:bg-surface-2/50 transition-colors"
       >
-        <span>{item.name}</span>
-        <span className="text-small text-ink-2 font-mono">
-          {[item.dose, item.timing, labelForGroup(item.stack_group)]
-            .filter(Boolean)
-            .join(' · ') || 'tap to edit'}
-        </span>
+        <span className="text-body">{item.name}</span>
+        <span className="text-small text-ink-2 tabular-nums">{detailForStack(item)}</span>
       </li>
     );
   }
 
   return (
-    <li className="list-none space-y-2 border border-line rounded p-3">
+    <li className="list-none rounded-2xl bg-surface p-4 space-y-3 shadow-soft">
       <input
         value={draft.name}
         onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-        placeholder="name"
-        className="w-full bg-transparent border-b border-line text-body focus:border-ink focus:outline-none py-1"
+        placeholder="Name"
+        className="w-full bg-transparent border-b border-line text-body focus:border-ink focus:outline-none py-2"
       />
       <div className="grid grid-cols-2 gap-2">
         <input
           value={draft.dose ?? ''}
           onChange={(e) => setDraft({ ...draft, dose: e.target.value || null })}
-          placeholder="dose (e.g. 500 mg)"
-          className="bg-transparent border border-line rounded px-2 py-1 text-small font-mono focus:border-ink focus:outline-none"
+          placeholder="Dose (e.g. 500 mg)"
+          className="bg-transparent border border-line rounded-xl px-3 py-2 text-small focus:border-ink focus:outline-none"
         />
         <input
           value={draft.timing ?? ''}
           onChange={(e) => setDraft({ ...draft, timing: e.target.value || null })}
-          placeholder="timing"
-          className="bg-transparent border border-line rounded px-2 py-1 text-small font-mono focus:border-ink focus:outline-none"
+          placeholder="Timing"
+          className="bg-transparent border border-line rounded-xl px-3 py-2 text-small focus:border-ink focus:outline-none"
         />
       </div>
       <select
         value={draft.stack_group ?? ''}
         onChange={(e) => setDraft({ ...draft, stack_group: e.target.value || null })}
-        className="w-full bg-transparent border border-line rounded px-2 py-1 text-small font-mono focus:border-ink focus:outline-none"
+        className="w-full bg-transparent border border-line rounded-xl px-3 py-2 text-small focus:border-ink focus:outline-none"
       >
         {GROUP_OPTIONS.map((g) => (
           <option key={g.value} value={g.value}>
@@ -242,14 +248,14 @@ function StackRow({
           </option>
         ))}
       </select>
-      {err && <p className="text-small text-signal-red font-mono">{err}</p>}
+      {err && <p className="text-small text-signal-red">{err}</p>}
       <div className="flex gap-2 pt-1">
         <button
           onClick={save}
           disabled={busy}
-          className="flex-1 h-10 bg-accent text-accent-fg rounded text-small font-medium font-mono disabled:opacity-60"
+          className="flex-1 h-10 bg-accent text-accent-fg rounded-xl text-small font-semibold disabled:opacity-60"
         >
-          save
+          Save
         </button>
         <button
           onClick={() => {
@@ -258,17 +264,17 @@ function StackRow({
             onCancel?.();
           }}
           disabled={busy}
-          className="h-10 px-4 border border-line rounded text-small font-mono"
+          className="h-10 px-4 border border-line rounded-xl text-small"
         >
-          cancel
+          Cancel
         </button>
         {mode === 'existing' && (
           <button
             onClick={remove}
             disabled={busy}
-            className="h-10 px-4 border border-line rounded text-small font-mono text-signal-red"
+            className="h-10 px-4 border border-line rounded-xl text-small text-signal-red"
           >
-            remove
+            Remove
           </button>
         )}
       </div>
@@ -288,23 +294,26 @@ function PrefsSection({
   return (
     <section className="space-y-3">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-h2">preferences</h2>
+        <h2 className="text-h2">Preferences</h2>
         <button
           onClick={() => setAdding(true)}
-          className="text-small font-mono text-ink-2 hover:text-ink"
+          className="text-small text-ink-2 hover:text-ink"
         >
-          + add
+          + Add
         </button>
       </div>
 
       {items === null ? (
-        <p className="text-small font-mono text-ink-3">loading…</p>
+        <p className="text-small text-ink-3">Loading…</p>
       ) : items.length === 0 && !adding ? (
-        <p className="text-small text-ink-2">
-          nothing here yet. on the home page, say something like &ldquo;from now on a serving of meat is half a pound for me.&rdquo;
+        <p className="text-small text-ink-2 leading-relaxed">
+          Nothing here yet. On the home page, say something like{' '}
+          <span className="text-ink">
+            &ldquo;From now on a serving of meat is half a pound for me.&rdquo;
+          </span>
         </p>
       ) : (
-        <ul className="list-none space-y-1">
+        <ul className="rounded-2xl bg-surface shadow-soft divide-y divide-line overflow-hidden">
           {items.map((it) => (
             <PrefRow key={it.id} item={it} reload={reload} />
           ))}
@@ -356,7 +365,7 @@ function PrefRow({
   async function save() {
     const label = (draft.notes ?? '').trim();
     if (!label) {
-      setErr('please describe what this is');
+      setErr('Please describe what this is.');
       return;
     }
     const key = mode === 'existing' ? draft.key : labelToKey(label, draft.unit);
@@ -380,12 +389,12 @@ function PrefRow({
       });
       if (!r.ok) {
         const b = await r.json().catch(() => null);
-        throw new Error(b?.error ?? `save failed: ${r.status}`);
+        throw new Error(b?.error ?? `Save failed: ${r.status}`);
       }
       setEditing(false);
       await reload();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'save failed');
+      setErr(e instanceof Error ? e.message : 'Save failed.');
     } finally {
       setBusy(false);
     }
@@ -396,7 +405,7 @@ function PrefRow({
       onCancel?.();
       return;
     }
-    if (!confirm(`remove "${displayLabel}"?`)) return;
+    if (!confirm(`Remove "${displayLabel}"?`)) return;
     setBusy(true);
     try {
       await fetch('/api/preferences/delete', {
@@ -411,28 +420,28 @@ function PrefRow({
   }
 
   if (!editing) {
+    const detail =
+      item.value_num != null
+        ? `${item.value_num}${item.unit ? ' ' + item.unit : ''}`
+        : item.value_text || 'Tap to edit';
     return (
       <li
         onClick={() => setEditing(true)}
-        className="flex items-baseline justify-between text-body cursor-pointer hover:bg-line/20 -mx-2 px-2 py-1.5 rounded"
+        className="flex flex-col gap-1 px-4 py-3 cursor-pointer hover:bg-surface-2/50 transition-colors"
       >
-        <span>{displayLabel}</span>
-        <span className="text-small text-ink-2 font-mono">
-          {item.value_num != null
-            ? `${item.value_num}${item.unit ? ' ' + item.unit : ''}`
-            : item.value_text || 'tap to edit'}
-        </span>
+        <span className="text-body">{displayLabel}</span>
+        <span className="text-small text-ink-2 tabular-nums">{detail}</span>
       </li>
     );
   }
 
   return (
-    <li className="list-none space-y-2 border border-line rounded p-3">
+    <li className="list-none rounded-2xl bg-surface p-4 space-y-3 shadow-soft">
       <input
         value={draft.notes ?? ''}
         onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
-        placeholder="what is it? e.g. cup of water, serving of meat"
-        className="w-full bg-transparent border-b border-line text-body focus:border-ink focus:outline-none py-1"
+        placeholder="What is it? e.g. cup of water, serving of meat"
+        className="w-full bg-transparent border-b border-line text-body focus:border-ink focus:outline-none py-2"
       />
       <div className="grid grid-cols-[1fr_auto] gap-2">
         <input
@@ -443,24 +452,24 @@ function PrefRow({
             const n = v === '' ? null : Number(v);
             setDraft({ ...draft, value_num: Number.isFinite(n as number) ? (n as number) : null });
           }}
-          placeholder="value"
-          className="bg-transparent border border-line rounded px-3 py-2 text-body font-mono focus:border-ink focus:outline-none"
+          placeholder="Value"
+          className="bg-transparent border border-line rounded-xl px-3 py-2 text-body tabular-nums focus:border-ink focus:outline-none"
         />
         <input
           value={draft.unit ?? ''}
           onChange={(e) => setDraft({ ...draft, unit: e.target.value || null })}
-          placeholder="unit"
-          className="w-20 bg-transparent border border-line rounded px-3 py-2 text-body font-mono focus:border-ink focus:outline-none"
+          placeholder="Unit"
+          className="w-20 bg-transparent border border-line rounded-xl px-3 py-2 text-body focus:border-ink focus:outline-none"
         />
       </div>
-      {err && <p className="text-small text-signal-red font-mono">{err}</p>}
+      {err && <p className="text-small text-signal-red">{err}</p>}
       <div className="flex gap-2 pt-1">
         <button
           onClick={save}
           disabled={busy}
-          className="flex-1 h-10 bg-accent text-accent-fg rounded text-small font-medium font-mono disabled:opacity-60"
+          className="flex-1 h-10 bg-accent text-accent-fg rounded-xl text-small font-semibold disabled:opacity-60"
         >
-          save
+          Save
         </button>
         <button
           onClick={() => {
@@ -469,17 +478,17 @@ function PrefRow({
             onCancel?.();
           }}
           disabled={busy}
-          className="h-10 px-4 border border-line rounded text-small font-mono"
+          className="h-10 px-4 border border-line rounded-xl text-small"
         >
-          cancel
+          Cancel
         </button>
         {mode === 'existing' && (
           <button
             onClick={remove}
             disabled={busy}
-            className="h-10 px-4 border border-line rounded text-small font-mono text-signal-red"
+            className="h-10 px-4 border border-line rounded-xl text-small text-signal-red"
           >
-            remove
+            Remove
           </button>
         )}
       </div>
@@ -487,11 +496,31 @@ function PrefRow({
   );
 }
 
+// Build the secondary line for a stack row. Dedupes the common case where
+// timing and stack_group both resolve to the same word (e.g. "Morning · Morning"),
+// and humanizes snake_case timing values ("with_meals" -> "With meals").
+function detailForStack(item: StackItem): string {
+  const parts: string[] = [];
+  if (item.dose) parts.push(item.dose);
+  const timing = item.timing ? humanize(item.timing) : null;
+  const group = labelForGroup(item.stack_group);
+  if (timing && group && timing.toLowerCase() === group.toLowerCase()) {
+    parts.push(timing);
+  } else {
+    if (timing) parts.push(timing);
+    if (group) parts.push(group);
+  }
+  return parts.join(' · ') || 'Tap to edit';
+}
+
+function humanize(s: string): string {
+  const cleaned = s.replace(/_/g, ' ').trim();
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
 function labelForPref(item: PrefItem): string {
-  if (item.notes?.trim()) return item.notes.trim();
-  // Fall back to humanising the snake_case key for old rows.
-  const k = item.key.replace(/_(g|ml|kcal|iu|oz|mg|mcg)$/i, '').replace(/_/g, ' ');
-  return k || item.key;
+  const raw = item.notes?.trim() || item.key.replace(/_(g|ml|kcal|iu|oz|mg|mcg)$/i, '').replace(/_/g, ' ');
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
 function labelToKey(label: string, unit: string | null): string {
@@ -507,8 +536,8 @@ function labelToKey(label: string, unit: string | null): string {
 
 function labelForGroup(group: string | null): string | null {
   if (!group) return null;
-  if (group === 'morning_stack') return 'morning';
-  if (group === 'day_stack') return 'day';
-  if (group === 'sleep_stack') return 'sleep';
+  if (group === 'morning_stack') return 'Morning';
+  if (group === 'day_stack') return 'Day';
+  if (group === 'sleep_stack') return 'Sleep';
   return group;
 }

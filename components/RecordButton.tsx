@@ -73,7 +73,7 @@ export function RecordButton({ autoLaunch = false, onRecorded }: Props) {
       setState('recording');
     } catch (err) {
       console.error('mic error', err);
-      alert('microphone permission denied. tap settings → safari → microphone.');
+      alert('Microphone permission denied. Tap Settings → Safari → Microphone.');
       setState('idle');
     }
   }
@@ -141,7 +141,7 @@ export function RecordButton({ autoLaunch = false, onRecorded }: Props) {
         <Circle size={18} fill="currentColor" className="animate-dot-pulse" />
       )}
       <span className="font-mono">
-        {isRecording ? `stop · ${formatTime(elapsedMs)}` : 'tap to record'}
+        {isRecording ? `Stop · ${formatTime(elapsedMs)}` : 'Tap to record'}
       </span>
     </button>
   );

@@ -45,7 +45,7 @@ export function NutritionTile({ value, label, meta, field, unit, rows }: Props) 
             </div>
 
             {contributions.length === 0 ? (
-              <p className="text-body text-ink-2">no entries contributed to this stat yet.</p>
+              <p className="text-body text-ink-2">No entries contributed to this stat yet.</p>
             ) : (
               <ul className="space-y-2">
                 {contributions.map((r) => (
@@ -71,7 +71,7 @@ export function NutritionTile({ value, label, meta, field, unit, rows }: Props) 
               onClick={() => setOpen(false)}
               className="w-full h-10 rounded-xl bg-ink text-accent-fg text-small font-medium mt-2"
             >
-              close
+              Close
             </button>
           </div>
         </div>

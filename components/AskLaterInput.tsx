@@ -43,31 +43,28 @@ export function AskLaterInput() {
   return (
     <div className="w-full space-y-2">
       <label className="block text-micro text-ink-3 uppercase tracking-wide">
-        ask later · a question to remember
+        Ask later · a question to remember
       </label>
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={onKeyDown}
         rows={2}
-        placeholder="e.g. did my sleep improve since starting magnesium?"
-        className="w-full p-3 bg-surface border border-line rounded text-body focus:border-ink focus:outline-none"
+        placeholder="e.g. Did my sleep improve since starting magnesium?"
+        className="w-full p-3 bg-surface border border-line rounded-xl text-body focus:border-ink focus:outline-none shadow-soft-sm"
       />
       <div className="flex items-center gap-3">
         <button
           onClick={submit}
           disabled={status === 'saving' || !text.trim()}
-          className="h-9 px-4 border border-line rounded text-small disabled:opacity-40"
+          className="h-10 px-4 rounded-xl border border-line text-small disabled:opacity-40"
         >
-          {status === 'saving' ? 'saving…' : 'save'}
+          {status === 'saving' ? 'Saving…' : 'Save'}
         </button>
-        {status === 'saved' && (
-          <span className="text-micro text-ink-3 font-mono">saved</span>
-        )}
+        {status === 'saved' && <span className="text-micro text-ink-3">Saved</span>}
         {status === 'error' && error && (
-          <span className="text-micro text-signal-red font-mono">{error}</span>
+          <span className="text-micro text-signal-red">{error}</span>
         )}
-        <span className="text-micro text-ink-3 font-mono ml-auto">⌘↵ to save</span>
       </div>
     </div>
   );

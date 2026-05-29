@@ -55,11 +55,11 @@ function LoginInner() {
     <main className="min-h-dvh flex items-center justify-center p-4">
       <div className="w-full max-w-sm space-y-6">
         <div>
-          <h1 className="text-h1">signal</h1>
+          <h1 className="text-h1">Signal</h1>
           <p className="text-small text-ink-2 mt-1">
             {step === 'email'
-              ? 'enter your email to sign in.'
-              : `enter the 6-digit code sent to ${email}.`}
+              ? 'Enter your email to sign in.'
+              : `Enter the 6-digit code sent to ${email}.`}
           </p>
         </div>
 
@@ -78,7 +78,7 @@ function LoginInner() {
               disabled={status === 'sending'}
               className="w-full h-12 bg-accent text-accent-fg rounded-xl text-body font-semibold disabled:opacity-60 shadow-soft"
             >
-              {status === 'sending' ? 'sending…' : 'send code'}
+              {status === 'sending' ? 'Sending…' : 'Send code'}
             </button>
             {status === 'error' && (
               <p className="text-small text-signal-red">{errorMsg}</p>
@@ -101,7 +101,7 @@ function LoginInner() {
               disabled={status === 'verifying'}
               className="w-full h-12 bg-accent text-accent-fg rounded-xl text-body font-semibold disabled:opacity-60 shadow-soft"
             >
-              {status === 'verifying' ? 'verifying…' : 'verify & sign in'}
+              {status === 'verifying' ? 'Verifying…' : 'Verify & sign in'}
             </button>
             <button
               type="button"
@@ -113,7 +113,7 @@ function LoginInner() {
               }}
               className="w-full text-small text-ink-2 underline"
             >
-              use a different email
+              Use a different email
             </button>
             {status === 'error' && (
               <p className="text-small text-signal-red">{errorMsg}</p>

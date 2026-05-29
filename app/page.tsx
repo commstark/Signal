@@ -134,17 +134,17 @@ function HomeInner() {
     <main className="min-h-dvh flex flex-col">
       <header className="p-4 flex justify-end gap-4">
         <Link href="/stack" className="text-small text-ink-2 hover:text-ink font-mono">
-          account
+          Account
         </Link>
         <Link href="/ask" className="text-small text-ink-2 hover:text-ink font-mono">
-          ask
+          Ask
         </Link>
         <Link
           href="/today"
           className="text-small text-ink-2 hover:text-ink font-mono"
           data-tour="today-link"
         >
-          today
+          Today
         </Link>
       </header>
 
@@ -165,7 +165,7 @@ function HomeInner() {
 
         {latestSaved && (
           <div className="w-full space-y-2">
-            <p className="text-micro text-ink-3 uppercase tracking-wide">latest transcript</p>
+            <p className="text-micro text-ink-3 uppercase tracking-wide">Latest transcript</p>
             <TranscriptEditor entryId={latestSaved.entryId!} initial={latestSaved.transcript!} />
           </div>
         )}
@@ -176,13 +176,13 @@ function HomeInner() {
               prefs
             </span>
             <p className="flex-1">
-              you said &ldquo;{prefsTip.phrase}&rdquo;. tell me once —{' '}
-              <span className="text-ink">&ldquo;from now on a {prefsTip.term} is …&rdquo;</span> — and
+              You said &ldquo;{prefsTip.phrase}&rdquo;. Tell me once —{' '}
+              <span className="text-ink">&ldquo;From now on a {prefsTip.term} is …&rdquo;</span> — and
               I&rsquo;ll use it every time.
             </p>
             <button
               onClick={() => setPrefsTip(null)}
-              aria-label="dismiss"
+              aria-label="Dismiss"
               className="text-ink-3 hover:text-ink shrink-0 leading-none"
             >
               ×
@@ -200,29 +200,29 @@ function HomeInner() {
 
 const EXAMPLES: Array<{ label: string; quote: string }> = [
   // food
-  { label: 'food', quote: 'had a turkey sandwich and a black coffee.' },
-  { label: 'food', quote: 'two scrambled eggs on toast with avocado.' },
-  { label: 'food', quote: 'salmon bowl with rice and greens for dinner.' },
-  { label: 'food', quote: 'banana and a protein shake post-workout.' },
+  { label: 'food', quote: 'Had a turkey sandwich and a black coffee.' },
+  { label: 'food', quote: 'Two scrambled eggs on toast with avocado.' },
+  { label: 'food', quote: 'Salmon bowl with rice and greens for dinner.' },
+  { label: 'food', quote: 'Banana and a protein shake post-workout.' },
   { label: 'food', quote: '8oz grilled chicken and roasted broccoli.' },
   // workout
-  { label: 'workout', quote: 'deadlifts 5x5 at 315, then 20 min easy bike.' },
-  { label: 'workout', quote: 'bjj rolling, six rounds of five minutes.' },
-  { label: 'workout', quote: 'bench 4x8 at 185, pull-ups 3x10 bodyweight.' },
-  { label: 'workout', quote: 'dead hangs three sets of 45 seconds.' },
+  { label: 'workout', quote: 'Deadlifts 5x5 at 315, then 20 min easy bike.' },
+  { label: 'workout', quote: 'BJJ rolling, six rounds of five minutes.' },
+  { label: 'workout', quote: 'Bench 4x8 at 185, pull-ups 3x10 bodyweight.' },
+  { label: 'workout', quote: 'Dead hangs three sets of 45 seconds.' },
   { label: 'workout', quote: '30 minute zone two run, 5k easy.' },
   // stack
-  { label: 'stack', quote: 'from now on I take 400 IU vitamin E in the morning.' },
-  { label: 'stack', quote: 'adding 5g creatine to my morning stack.' },
-  { label: 'stack', quote: 'starting magnesium glycinate 600mg before bed.' },
-  { label: 'stack', quote: 'switching my protein shake to whey isolate.' },
-  { label: 'stack', quote: 'stopping ashwagandha — done with that experiment.' },
+  { label: 'stack', quote: 'From now on I take 400 IU vitamin E in the morning.' },
+  { label: 'stack', quote: 'Adding 5g creatine to my morning stack.' },
+  { label: 'stack', quote: 'Starting magnesium glycinate 600mg before bed.' },
+  { label: 'stack', quote: 'Switching my protein shake to whey isolate.' },
+  { label: 'stack', quote: 'Stopping ashwagandha — done with that experiment.' },
   // prefs
-  { label: 'prefs', quote: 'for me, a serving of meat is half a pound.' },
-  { label: 'prefs', quote: 'from now on a cup is 295ml for me.' },
-  { label: 'prefs', quote: 'my protein shake is 30g of protein.' },
-  { label: 'prefs', quote: 'in general, a serving of rice is one cup cooked.' },
-  { label: 'prefs', quote: 'for me, a slice of pizza is around 350 kcal.' },
+  { label: 'prefs', quote: 'For me, a serving of meat is half a pound.' },
+  { label: 'prefs', quote: 'From now on a cup is 295ml for me.' },
+  { label: 'prefs', quote: 'My protein shake is 30g of protein.' },
+  { label: 'prefs', quote: 'In general, a serving of rice is one cup cooked.' },
+  { label: 'prefs', quote: 'For me, a slice of pizza is around 350 kcal.' },
 ];
 
 function ExampleHints() {
@@ -252,15 +252,15 @@ function CaptureRow({ capture }: { capture: Capture }) {
   const label = (() => {
     switch (capture.status) {
       case 'transcribing':
-        return 'transcribing…';
+        return 'Transcribing…';
       case 'parsing':
-        return 'parsing…';
+        return 'Parsing…';
       case 'queued':
-        return 'queued (offline)';
+        return 'Queued (offline)';
       case 'saved':
-        return `done · ${capture.intent?.replace(/_/g, ' ') ?? 'ok'}`;
+        return `Done · ${titleIntent(capture.intent) ?? 'OK'}`;
       case 'failed':
-        return capture.error ?? 'failed';
+        return capture.error ?? 'Failed';
     }
   })();
 
@@ -270,6 +270,13 @@ function CaptureRow({ capture }: { capture: Capture }) {
       <span className={capture.status === 'failed' ? 'text-signal-red' : ''}>{label}</span>
     </li>
   );
+}
+
+// Turn an intent enum ("preference_set") into display copy ("Preference set").
+function titleIntent(intent?: string): string | undefined {
+  if (!intent) return undefined;
+  const s = intent.replace(/_/g, ' ');
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function extFor(mime: string) {

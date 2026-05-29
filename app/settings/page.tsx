@@ -9,21 +9,19 @@ export default async function SettingsPage() {
     <main className="min-h-dvh p-4 max-w-xl mx-auto">
       <header className="mb-6">
         <Link href="/" className="text-small text-ink-2 hover:text-ink">
-          ← back
+          ← Back
         </Link>
-        <h1 className="text-h1 mt-2">settings</h1>
+        <h1 className="text-h1 mt-2">Settings</h1>
       </header>
 
       <dl className="space-y-4">
-        <Row label="account">{user.email}</Row>
-        <Row label="timezone">America/Los_Angeles</Row>
-        <Row label="units">lb</Row>
-        <Row label="version">0.1.0</Row>
+        <Row label="Account">{user.email}</Row>
+        <Row label="Timezone">America/Los_Angeles</Row>
+        <Row label="Units">lb</Row>
+        <Row label="Version">0.1.0</Row>
       </dl>
 
-      <p className="text-small text-ink-3 mt-10 font-mono">
-        more settings arrive in phase 4.
-      </p>
+      <p className="text-small text-ink-3 mt-10">More settings arrive in phase 4.</p>
     </main>
   );
 }
