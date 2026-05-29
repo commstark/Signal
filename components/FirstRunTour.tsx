@@ -403,9 +403,9 @@ export function FirstRunTour() {
       <div
         className={`absolute inset-0 ${
           scene.fauxBreakdown
-            ? 'bg-black/70'
+            ? 'bg-black/50 backdrop-blur-sm'
             : onHome
-            ? 'bg-bg/85 backdrop-blur-sm'
+            ? 'bg-black/20 backdrop-blur-md'
             : 'bg-transparent'
         }`}
         style={{ pointerEvents: onHome || scene.fauxBreakdown ? 'auto' : 'none' }}
@@ -442,7 +442,7 @@ export function FirstRunTour() {
 
       {scene.ghost && (
         <div
-          className="absolute left-1/2 top-[34%] w-[min(24rem,88vw)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-line bg-surface p-4 shadow-xl space-y-3"
+          className="absolute left-1/2 top-[34%] w-[min(24rem,88vw)] -translate-x-1/2 -translate-y-1/2 rounded-3xl bg-surface p-5 shadow-soft-lg space-y-3"
           style={{ pointerEvents: 'none' }}
         >
           <div className="flex items-center gap-3 text-small font-mono text-ink-2">
@@ -459,17 +459,17 @@ export function FirstRunTour() {
 
       {scene.fauxEditor && (
         <div
-          className="absolute left-1/2 top-[34%] w-[min(26rem,90vw)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-line bg-surface p-4 shadow-xl space-y-2"
+          className="absolute left-1/2 top-[34%] w-[min(26rem,90vw)] -translate-x-1/2 -translate-y-1/2 rounded-3xl bg-surface p-5 shadow-soft-lg space-y-2"
           style={{ pointerEvents: 'none' }}
         >
           <p className="text-micro text-ink-3 uppercase tracking-wide">latest transcript</p>
           {editorMode === 'editing' ? (
             <div className="space-y-2">
-              <div className="w-full p-3 bg-surface border border-ink rounded text-body min-h-[3rem]">
+              <div className="w-full p-4 bg-surface border border-ink rounded-xl text-body min-h-[3rem]">
                 {editText}
                 <span className="inline-block w-[2px] h-[1em] bg-ink ml-0.5 align-middle animate-tour-pulse" />
               </div>
-              <span className="inline-flex h-9 px-4 items-center bg-accent text-accent-fg rounded text-small font-medium">
+              <span className="inline-flex h-10 px-4 items-center bg-accent text-accent-fg rounded-xl text-small font-semibold">
                 done · re-parse
               </span>
             </div>
@@ -485,7 +485,7 @@ export function FirstRunTour() {
       {scene.fauxBreakdown && (
         <div className="absolute inset-0 flex items-end sm:items-center justify-center p-4 pb-36 sm:pb-4">
           <div
-            className="w-full max-w-md bg-surface border border-line rounded p-4 space-y-3"
+            className="w-full max-w-md bg-surface rounded-3xl p-6 space-y-3 shadow-soft-lg"
             style={{ pointerEvents: 'auto' }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -515,13 +515,13 @@ export function FirstRunTour() {
           captionTop ? 'top-20' : 'bottom-24'
         }`}
       >
-        <div className="rounded-md border border-line bg-surface px-4 py-2.5 text-small font-mono text-ink-2 shadow-lg leading-snug">
+        <div className="rounded-2xl bg-surface px-5 py-3 text-small text-ink shadow-soft-lg leading-snug">
           {scene.caption}
         </div>
       </div>
 
       <div
-        className="absolute bottom-6 left-1/2 -translate-x-1/2 max-w-[calc(100vw-1.5rem)] flex items-center gap-1 rounded-full border border-line bg-surface px-1.5 py-1 shadow-lg"
+        className="absolute bottom-6 left-1/2 -translate-x-1/2 max-w-[calc(100vw-1.5rem)] flex items-center gap-1 rounded-full bg-surface px-1.5 py-1 shadow-soft-lg"
         style={{ pointerEvents: 'auto' }}
       >
         <button
@@ -562,7 +562,7 @@ function FauxRecordButton({ state, secs }: { state: 'idle' | 'recording'; secs: 
   return (
     <div
       className={[
-        'w-full h-full rounded text-body font-medium flex items-center justify-center gap-3 select-none transition-colors',
+        'w-full h-full rounded-2xl text-body font-semibold flex items-center justify-center gap-3 select-none transition-colors shadow-soft',
         isRecording
           ? 'bg-signal-red text-white animate-record-pulse'
           : 'bg-[#EAB308] text-black',

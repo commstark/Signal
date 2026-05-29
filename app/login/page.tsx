@@ -71,12 +71,12 @@ function LoginInner() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="w-full h-11 px-3 bg-transparent border border-line rounded text-body focus:border-ink focus:outline-none"
+              className="w-full h-12 px-4 bg-surface border border-line rounded-xl text-body focus:border-ink focus:outline-none shadow-soft-sm"
             />
             <button
               type="submit"
               disabled={status === 'sending'}
-              className="w-full h-11 bg-accent text-accent-fg rounded text-body font-medium disabled:opacity-60"
+              className="w-full h-12 bg-accent text-accent-fg rounded-xl text-body font-semibold disabled:opacity-60 shadow-soft"
             >
               {status === 'sending' ? 'sending…' : 'send code'}
             </button>
@@ -94,12 +94,12 @@ function LoginInner() {
               value={code}
               onChange={(e) => setCode(e.target.value)}
               placeholder="123456"
-              className="w-full h-11 px-3 bg-transparent border border-line rounded text-body tracking-[0.3em] focus:border-ink focus:outline-none"
+              className="w-full h-12 px-4 bg-surface border border-line rounded-xl text-body tracking-[0.3em] tabular-nums focus:border-ink focus:outline-none shadow-soft-sm"
             />
             <button
               type="submit"
               disabled={status === 'verifying'}
-              className="w-full h-11 bg-accent text-accent-fg rounded text-body font-medium disabled:opacity-60"
+              className="w-full h-12 bg-accent text-accent-fg rounded-xl text-body font-semibold disabled:opacity-60 shadow-soft"
             >
               {status === 'verifying' ? 'verifying…' : 'verify & sign in'}
             </button>

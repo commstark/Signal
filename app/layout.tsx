@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from 'next';
 import { Suspense } from 'react';
-import { Inter, JetBrains_Mono } from 'next/font/google';
+import { Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { SwRegister } from '@/components/SwRegister';
 import { FirstRunTour } from '@/components/FirstRunTour';
 
-const inter = Inter({
+const jakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
   variable: '--font-sans',
   display: 'swap',
@@ -34,12 +34,12 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#0A0A0A',
+  themeColor: '#F7F3EC',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" className={`${jakarta.variable} ${jetbrainsMono.variable}`}>
       <body>
         <SwRegister />
         {children}

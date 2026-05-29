@@ -129,7 +129,7 @@ export function RecordButton({ autoLaunch = false, onRecorded }: Props) {
     <button
       onClick={isRecording ? stop : start}
       className={[
-        'w-full h-16 rounded text-body font-medium flex items-center justify-center gap-3 select-none transition-colors',
+        'w-full h-16 rounded-2xl text-body font-semibold flex items-center justify-center gap-3 select-none transition-colors shadow-soft',
         isRecording
           ? 'bg-signal-red text-white animate-record-pulse'
           : 'bg-[#EAB308] text-black',

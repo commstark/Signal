@@ -104,13 +104,13 @@ export function TranscriptEditor({ entryId, initial, onSaved }: Props) {
         onBlur={commit}
         onKeyDown={onKeyDown}
         rows={Math.max(3, Math.ceil(text.length / 60))}
-        className="w-full p-3 bg-surface border border-line rounded text-body focus:border-ink focus:outline-none"
+        className="w-full p-4 bg-surface border border-line rounded-xl text-body focus:border-ink focus:outline-none shadow-soft-sm"
       />
       <div className="flex items-center gap-2">
         <button
           onClick={commit}
           disabled={status === 'saving'}
-          className="h-9 px-4 bg-accent text-accent-fg rounded text-small font-medium disabled:opacity-60"
+          className="h-10 px-4 bg-accent text-accent-fg rounded-xl text-small font-semibold disabled:opacity-60"
         >
           {status === 'saving' ? 'saving…' : 'done · re-parse'}
         </button>
@@ -119,7 +119,7 @@ export function TranscriptEditor({ entryId, initial, onSaved }: Props) {
             setText(savedText);
             setEditing(false);
           }}
-          className="h-9 px-4 border border-line rounded text-small"
+          className="h-10 px-4 border border-line rounded-xl text-small"
         >
           cancel
         </button>
