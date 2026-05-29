@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from 'next';
+import { Suspense } from 'react';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { SwRegister } from '@/components/SwRegister';
+import { FirstRunTour } from '@/components/FirstRunTour';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -41,6 +43,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <SwRegister />
         {children}
+        <Suspense fallback={null}>
+          <FirstRunTour />
+        </Suspense>
       </body>
     </html>
   );

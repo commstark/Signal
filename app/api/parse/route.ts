@@ -20,6 +20,7 @@ import {
   type WriteResult,
 } from '@/lib/writers';
 import { loadUserCalibrations } from '@/lib/preferences';
+import { detectVaguePortions, type VaguePortionHint } from '@/lib/vague-portions';
 import type {
   HealthLogParsed,
   WorkoutLogParsed,
@@ -138,6 +139,7 @@ export async function POST(req: NextRequest) {
   const extractedFacts: Record<string, unknown> = {};
   const warnings: string[] = [];
   const sectionResults: Array<{ section: string; result: WriteResult }> = [];
+  let prefsHint: VaguePortionHint | null = null;
 
   if (intent === 'health_log' || intent === 'mixed' || intent === 'free_note') {
     try {
@@ -145,6 +147,7 @@ export async function POST(req: NextRequest) {
       const { value, usage } = await parseHealthLog(transcript, occurredAt, calibrations);
       usageTotals.push(usage);
       extractedFacts.health = value;
+      prefsHint = detectVaguePortions(value as HealthLogParsed, calibrations)[0] ?? null;
       await recordUsage({
         userId: user.id,
         service: 'anthropic',
@@ -325,6 +328,7 @@ export async function POST(req: NextRequest) {
     intent,
     parse_status: parseStatus,
     warnings,
+    prefs_hint: prefsHint,
   });
 }
 
