@@ -149,7 +149,7 @@ function HomeInner() {
       </header>
 
       <div className="flex-1 flex flex-col items-center justify-center px-4 gap-6 max-w-xl mx-auto w-full">
-        <div className="w-full">
+        <div className="w-full" data-tour="record-button">
           <RecordButton autoLaunch={autoLaunch} onRecorded={onRecorded} />
         </div>
 
