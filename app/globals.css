@@ -3,9 +3,33 @@
 @tailwind utilities;
 
 @layer base {
+  /*
+   * Warm cream is the default. The Nixtio aesthetic: cream page, white
+   * cards, soft warm grays, mint accent. .dark on <html> opts in to the
+   * legacy dark theme, kept for late-night users.
+   */
   :root {
+    --bg: #F7F3EC;
+    --surface: #FFFFFF;
+    --surface-2: #F1EBE0;
+    --ink: #171717;
+    --ink-2: #6B6660;
+    --ink-3: #A8A29E;
+    --line: #EAE5DC;
+    --accent: #171717;
+    --accent-fg: #FAF6F0;
+    --signal-red: #DC2626;
+    --signal-green: #16A34A;
+    --signal-orange: #EA580C;
+    --mint: #B8D4C2;
+    --peach: #F4C5B3;
+    --lilac: #D4C5E8;
+  }
+
+  :root.dark {
     --bg: #0A0A0A;
     --surface: #161616;
+    --surface-2: #1E1E1E;
     --ink: #FAFAFA;
     --ink-2: #A1A1AA;
     --ink-3: #52525B;
@@ -15,20 +39,9 @@
     --signal-red: #EF4444;
     --signal-green: #22C55E;
     --signal-orange: #F97316;
-  }
-
-  :root.light {
-    --bg: #FAF8F5;
-    --surface: #FFFFFF;
-    --ink: #0A0A0A;
-    --ink-2: #52525B;
-    --ink-3: #A1A1AA;
-    --line: #E4E4E7;
-    --accent: #0A0A0A;
-    --accent-fg: #FAFAFA;
-    --signal-red: #DC2626;
-    --signal-green: #16A34A;
-    --signal-orange: #EA580C;
+    --mint: #5FA882;
+    --peach: #E8956B;
+    --lilac: #A98FD4;
   }
 
   html,
@@ -37,6 +50,8 @@
     color: var(--ink);
     font-family: var(--font-sans), system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+    /* OpenType: tabular numerals throughout so digit columns align in tiles. */
+    font-feature-settings: 'cv11', 'ss01', 'tnum';
   }
 
   *:focus-visible {

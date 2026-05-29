@@ -32,20 +32,20 @@ export function NutritionTile({ value, label, meta, field, unit, rows }: Props) 
 
       {open && (
         <div
-          className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-4"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4"
           onClick={() => setOpen(false)}
         >
           <div
-            className="w-full max-w-md bg-surface border border-line rounded p-4 space-y-3"
+            className="w-full max-w-md bg-surface rounded-3xl p-6 space-y-3 shadow-soft-lg"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-baseline justify-between">
               <h3 className="text-h3">{label}</h3>
-              <span className="text-small text-ink-2 font-mono">{value}</span>
+              <span className="text-small text-ink-2 font-mono tabular-nums">{value}</span>
             </div>
 
             {contributions.length === 0 ? (
-              <p className="text-body text-ink-2">no entries contributed to this stat yet.</p>
+              <p className="text-body text-ink-2">No entries contributed to this stat yet.</p>
             ) : (
               <ul className="space-y-2">
                 {contributions.map((r) => (
@@ -59,7 +59,7 @@ export function NutritionTile({ value, label, meta, field, unit, rows }: Props) 
                         {formatTime(r.occurred_at)}
                       </span>
                     </div>
-                    <span className="text-small font-mono text-ink shrink-0">
+                    <span className="text-small font-mono text-ink shrink-0 tabular-nums">
                       {formatValue(r.contrib as number, field, unit)}
                     </span>
                   </li>
@@ -69,9 +69,9 @@ export function NutritionTile({ value, label, meta, field, unit, rows }: Props) 
 
             <button
               onClick={() => setOpen(false)}
-              className="w-full h-9 border border-line rounded text-small mt-2"
+              className="w-full h-10 rounded-xl bg-ink text-accent-fg text-small font-medium mt-2"
             >
-              close
+              Close
             </button>
           </div>
         </div>

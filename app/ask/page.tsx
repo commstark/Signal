@@ -14,18 +14,18 @@ export default async function AskPage() {
     <main className="min-h-dvh pb-8">
       <header className="px-4 py-4 flex items-baseline justify-between">
         <div className="flex items-center gap-3">
-          <Link href="/" className="text-ink-2 hover:text-ink" aria-label="back">
+          <Link href="/" className="text-ink-2 hover:text-ink" aria-label="Back">
             <ArrowLeft size={18} />
           </Link>
           <div>
-            <h1 className="text-h2">ask</h1>
-            <p className="text-small text-ink-2 font-mono">
-              copy a prompt with your data into chatgpt / claude
+            <h1 className="text-h2">Ask</h1>
+            <p className="text-small text-ink-2">
+              Copy a prompt with your data into ChatGPT / Claude.
             </p>
           </div>
         </div>
         <Link href="/today" className="text-small text-ink-2 hover:text-ink font-mono">
-          today
+          Today
         </Link>
       </header>
 

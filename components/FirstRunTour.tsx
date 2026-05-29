@@ -1,99 +1,121 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Circle, Square } from 'lucide-react';
 import { StatusDot, type StatusTone } from '@/components/StatusDot';
+import { demoTodayData } from '@/lib/demo';
+import type { NutritionBreakdownRow } from '@/lib/today';
 
 const SEEN_KEY = 'signal.tourSeen';
 
 type Route = '/' | '/today';
 
-interface Ghost {
-  intent: string;
-  transcript: string;
-  // When true, the dot replays orange transcribing → orange parsing → green
-  // done on scene enter so the user sees the vocabulary live (once).
-  playSequence?: boolean;
+interface FauxEditor {
+  initial: string;
+  edit: { from: string; to: string };
+}
+
+interface FauxBreakdown {
+  field: 'protein_g';
+  label: string;
+  value: string;
 }
 
 interface Scene {
   route: Route;
   caption: string;
-  ghost?: Ghost;
-  cursorTarget?: string;
   highlightTarget?: string;
   scrollTo?: string | 'top';
+  fauxButton?: 'idle' | 'recording';
+  ghost?: { intent: string; transcript: string; playSequence?: boolean };
+  fauxEditor?: FauxEditor;
+  fauxBreakdown?: FauxBreakdown;
 }
 
-// Each scene is one click. User drives pace; nothing auto-advances except
-// the dot vocabulary inside scene 1 (which is the thing being taught).
+// 14-scene user-driven walkthrough. Each scene = one click. The only things
+// that auto-play inside a scene are the dot vocabulary in the parse scene
+// and the typing animation in the edit scene — both are what the scene is
+// teaching.
 const SCENES: Scene[] = [
   {
     route: '/',
-    caption: 'talk. anything about your day.',
+    caption: 'Tap the yellow button to start recording.',
     highlightTarget: 'record-button',
   },
   {
     route: '/',
-    caption: 'we transcribe it, parse what’s in it, and tag it.',
+    caption: 'Now you’re recording. Say something like — “Two scoops of whey and a turkey sandwich.” (food)',
+    fauxButton: 'recording',
+  },
+  {
+    route: '/',
+    caption: 'Or a workout — “Benched 225 for six, three sets.”',
+    fauxButton: 'recording',
+  },
+  {
+    route: '/',
+    caption: 'Or supplements — “Took my morning vitamin stack.”',
+    fauxButton: 'recording',
+  },
+  {
+    route: '/',
+    caption: 'Or a calibration — “From now on a glass is 295ml.” (We use it forever after.)',
+    fauxButton: 'recording',
+  },
+  {
+    route: '/',
+    caption: 'Tap the red button to stop when you’re done.',
+    fauxButton: 'recording',
+  },
+  {
+    route: '/',
+    caption: 'We transcribe, parse, and tag what you said.',
+    fauxButton: 'idle',
     ghost: {
       intent: 'food',
-      transcript: 'two scoops of whey and a turkey sandwich.',
+      transcript: 'Two scoops of whey and a turkey sandwich.',
       playSequence: true,
     },
   },
   {
     route: '/',
-    caption: 'food, like:',
-    ghost: { intent: 'food', transcript: 'two scoops of whey and a turkey sandwich.' },
+    caption: 'Got something wrong? Tap the transcript to edit — we’ll re-parse the numbers.',
+    fauxEditor: {
+      initial: 'Two scoops of whey and a turkey sandwich.',
+      edit: { from: 'turkey', to: 'ham' },
+    },
   },
   {
     route: '/',
-    caption: 'workouts, like:',
-    ghost: { intent: 'workout', transcript: 'benched 225 for six, three sets.' },
-  },
-  {
-    route: '/',
-    caption: 'supplements, like:',
-    ghost: { intent: 'supplement', transcript: 'took my morning vitamin stack.' },
-  },
-  {
-    route: '/',
-    caption: 'calibrations — say once, used forever:',
-    ghost: { intent: 'prefs', transcript: 'from now on a glass is 295ml.' },
-  },
-  {
-    route: '/',
-    caption: 'everything you say flows into today →',
-    cursorTarget: 'today-link',
+    caption: 'Now it lives in Today. Tap to see how it adds up.',
     highlightTarget: 'today-link',
   },
   {
     route: '/today',
-    caption: 'today — your day, totaled.',
+    caption: 'Today — your day, totaled.',
     scrollTo: 'top',
   },
   {
     route: '/today',
-    caption: 'macros, with honest ±20–30% confidence.',
+    caption: 'Tap any tile to see the breakdown.',
     highlightTarget: 'tile-protein',
   },
   {
     route: '/today',
-    caption: 'water — what you sipped. precise once you calibrate “a glass”.',
-    highlightTarget: 'tile-water',
+    caption: 'Every gram traced back to what you ate. Water, carbs, fiber, and sugar all work the same.',
+    fauxBreakdown: { field: 'protein_g', label: 'Protein', value: '76g' },
   },
   {
     route: '/today',
-    caption: 'workouts — sets, top set, duration.',
+    caption: 'Workouts roll up here — sets, top set, duration.',
     scrollTo: 'workouts',
     highlightTarget: 'workouts',
   },
   {
     route: '/today',
-    caption: 'tap back any time to keep logging.',
+    caption: 'Tap back any time to keep logging.',
     scrollTo: 'top',
-    cursorTarget: 'back-link',
     highlightTarget: 'back-link',
   },
 ];
@@ -114,24 +136,23 @@ export function FirstRunTour() {
   const [active, setActive] = useState(false);
   const [step, setStep] = useState(0);
 
-  // Ghost card state (driven by scene + the optional in-scene sequence).
+  const [buttonRect, setButtonRect] = useState<Box | null>(null);
+  const [recordingSecs, setRecordingSecs] = useState(0);
+
   const [ghostTone, setGhostTone] = useState<StatusTone>('done');
   const [ghostLabel, setGhostLabel] = useState<string>('');
   const [showTranscript, setShowTranscript] = useState(true);
 
-  // Overlay visuals.
-  const [cursor, setCursor] = useState<{ x: number; y: number; visible: boolean }>({
-    x: -100,
-    y: -100,
-    visible: false,
-  });
+  const [editText, setEditText] = useState<string>('');
+  const [editorMode, setEditorMode] = useState<'idle' | 'editing'>('idle');
+
   const [box, setBox] = useState<Box | null>(null);
+  const [captionTop, setCaptionTop] = useState(false);
 
   const reduced = useRef(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  // Tracks router.push we initiated, so user-initiated navigation can be
-  // detected and gracefully ends the tour.
   const expecting = useRef<Route | null>(null);
+  const recordingStartedAt = useRef<number | null>(null);
 
   const clearTimers = useCallback(() => {
     timers.current.forEach(clearTimeout);
@@ -143,8 +164,6 @@ export function FirstRunTour() {
     reduced.current = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   }, []);
 
-  // Decide whether to start. Only on the record screen, only once, and
-  // never when the Action Button shortcut (?mode=auto) is mid-capture.
   useEffect(() => {
     if (!mounted || active) return;
     let seen = true;
@@ -171,44 +190,116 @@ export function FirstRunTour() {
     setActive(false);
     setStep(0);
     setBox(null);
-    setCursor((c) => ({ ...c, visible: false }));
+    setButtonRect(null);
+    recordingStartedAt.current = null;
   }, [clearTimers]);
 
   const scene = SCENES[step];
 
-  // Set up visuals when the step changes (or pathname catches up).
+  // Keep the faux record button aligned with the real one through scroll/resize.
+  useEffect(() => {
+    if (!active) return;
+    const measure = () => {
+      const el = document.querySelector<HTMLElement>('[data-tour="record-button"]');
+      if (el) {
+        const r = el.getBoundingClientRect();
+        setButtonRect({ x: r.left, y: r.top, w: r.width, h: r.height });
+      } else {
+        setButtonRect(null);
+      }
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure, true);
+    };
+  }, [active, pathname]);
+
+  // Recording timer: resets on entering a recording group; persists across
+  // consecutive recording scenes so it reads as one continuous take.
+  useEffect(() => {
+    if (!active) return;
+    const isRecording = scene?.fauxButton === 'recording';
+    if (!isRecording) {
+      recordingStartedAt.current = null;
+      setRecordingSecs(0);
+      return;
+    }
+    if (recordingStartedAt.current === null) recordingStartedAt.current = Date.now();
+    const tick = () => {
+      if (recordingStartedAt.current === null) return;
+      setRecordingSecs(Math.floor((Date.now() - recordingStartedAt.current) / 1000));
+    };
+    tick();
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [active, scene]);
+
+  // Per-scene setup: ghost vocabulary, edit animation, scroll + highlight.
   useEffect(() => {
     if (!active || !scene) return;
-    if (pathname !== scene.route) return; // wait for navigation to settle
+    if (pathname !== scene.route) return;
     clearTimers();
 
-    // Ghost card.
     if (scene.ghost) {
+      const intentTitle =
+        scene.ghost.intent.charAt(0).toUpperCase() + scene.ghost.intent.slice(1);
       if (scene.ghost.playSequence && !reduced.current) {
         setGhostTone('progress');
-        setGhostLabel('transcribing…');
+        setGhostLabel('Transcribing…');
         setShowTranscript(false);
         timers.current.push(
           setTimeout(() => {
             setGhostTone('progress');
-            setGhostLabel('parsing…');
-          }, 1400),
+            setGhostLabel('Parsing…');
+          }, 1300),
         );
         timers.current.push(
           setTimeout(() => {
             setGhostTone('done');
-            setGhostLabel(`done · ${scene.ghost!.intent}`);
+            setGhostLabel(`Done · ${intentTitle}`);
             setShowTranscript(true);
-          }, 2900),
+          }, 2700),
         );
       } else {
         setGhostTone('done');
-        setGhostLabel(`done · ${scene.ghost.intent}`);
+        setGhostLabel(`Done · ${intentTitle}`);
         setShowTranscript(true);
       }
     }
 
-    // Scroll.
+    if (scene.fauxEditor) {
+      const { initial, edit } = scene.fauxEditor;
+      setEditText(initial);
+      setEditorMode('idle');
+      timers.current.push(
+        setTimeout(() => setEditorMode('editing'), reduced.current ? 50 : 700),
+      );
+      const start = initial.indexOf(edit.from);
+      if (start >= 0) {
+        const before = initial.slice(0, start);
+        const after = initial.slice(start + edit.from.length);
+        let delay = reduced.current ? 100 : 1400;
+        const charMs = reduced.current ? 8 : 75;
+        for (let i = edit.from.length - 1; i >= 0; i--) {
+          const snapshot = before + edit.from.slice(0, i) + after;
+          timers.current.push(setTimeout(() => setEditText(snapshot), delay));
+          delay += charMs;
+        }
+        delay += reduced.current ? 50 : 200;
+        for (let i = 1; i <= edit.to.length; i++) {
+          const snapshot = before + edit.to.slice(0, i) + after;
+          timers.current.push(setTimeout(() => setEditText(snapshot), delay));
+          delay += charMs;
+        }
+        timers.current.push(
+          setTimeout(() => setEditorMode('idle'), delay + (reduced.current ? 100 : 700)),
+        );
+      }
+    }
+
     const behavior: ScrollBehavior = reduced.current ? 'auto' : 'smooth';
     if (scene.scrollTo) {
       if (scene.scrollTo === 'top') {
@@ -220,27 +311,22 @@ export function FirstRunTour() {
       }
     }
 
-    // Position cursor + highlight box. Wait for scroll to settle if needed.
     const compute = () => {
-      if (scene.cursorTarget) {
-        const el = document.querySelector<HTMLElement>(`[data-tour="${scene.cursorTarget}"]`);
-        if (el) {
-          const r = el.getBoundingClientRect();
-          setCursor({ x: r.left + r.width / 2, y: r.top + r.height / 2, visible: true });
-        }
-      } else {
-        setCursor((c) => ({ ...c, visible: false }));
-      }
       if (scene.highlightTarget) {
         const el = document.querySelector<HTMLElement>(`[data-tour="${scene.highlightTarget}"]`);
         if (el) {
           const r = el.getBoundingClientRect();
           setBox({ x: r.left - 6, y: r.top - 6, w: r.width + 12, h: r.height + 12 });
+          // Flip caption to top if the highlight is in the bottom half — the
+          // default-bottom caption would otherwise cover what we're pointing at.
+          setCaptionTop(r.top + r.height / 2 > window.innerHeight * 0.55);
         } else {
           setBox(null);
+          setCaptionTop(false);
         }
       } else {
         setBox(null);
+        setCaptionTop(false);
       }
     };
     if (scene.scrollTo && !reduced.current) {
@@ -252,15 +338,14 @@ export function FirstRunTour() {
     return clearTimers;
   }, [active, scene, pathname, clearTimers]);
 
-  // End the tour gracefully if the user navigates away on their own (e.g.,
-  // taps the real back link during a /today scene).
+  // End the tour gracefully if the user navigates away on their own.
   useEffect(() => {
-    if (!active) return;
+    if (!active || !scene) return;
     if (expecting.current && pathname === expecting.current) {
       expecting.current = null;
       return;
     }
-    if (expecting.current === null && scene && pathname !== scene.route) {
+    if (expecting.current === null && pathname !== scene.route) {
       finish();
       if (pathname === '/today') router.push('/');
     }
@@ -300,22 +385,36 @@ export function FirstRunTour() {
     if (onToday) router.push('/');
   }, [finish, pathname, router]);
 
+  const breakdown = useMemo<NutritionBreakdownRow[]>(() => {
+    if (!scene?.fauxBreakdown) return [];
+    const field = scene.fauxBreakdown.field;
+    return demoTodayData().breakdown.filter((r) => {
+      const v = r[field];
+      return v != null && v > 0;
+    });
+  }, [scene]);
+
   if (!mounted || !active || !scene) return null;
-  if (pathname !== scene.route) return null; // hide briefly during nav
+  if (pathname !== scene.route) return null;
 
   const onHome = scene.route === '/';
   const isLast = step === SCENES.length - 1;
 
   return (
     <div className="fixed inset-0 z-[60]" style={{ pointerEvents: 'none' }}>
-      {/* Home scrim focuses attention on the ghost. /today stays readable. */}
       <div
-        className={`absolute inset-0 ${onHome ? 'bg-bg/85 backdrop-blur-sm' : 'bg-transparent'}`}
-        style={{ pointerEvents: onHome ? 'auto' : 'none' }}
+        className={`absolute inset-0 ${
+          scene.fauxBreakdown
+            ? 'bg-black/50 backdrop-blur-sm'
+            : onHome
+            ? 'bg-black/20 backdrop-blur-md'
+            : 'bg-transparent'
+        }`}
+        style={{ pointerEvents: onHome || scene.fauxBreakdown ? 'auto' : 'none' }}
         aria-hidden
       />
 
-      {box && (
+      {box && !scene.fauxBreakdown && (
         <div
           className="absolute rounded-md border-2 border-signal-orange animate-tour-pulse"
           style={{
@@ -328,9 +427,24 @@ export function FirstRunTour() {
         />
       )}
 
+      {scene.fauxButton && buttonRect && (
+        <div
+          className="absolute"
+          style={{
+            left: buttonRect.x,
+            top: buttonRect.y,
+            width: buttonRect.w,
+            height: buttonRect.h,
+            pointerEvents: 'none',
+          }}
+        >
+          <FauxRecordButton state={scene.fauxButton} secs={recordingSecs} />
+        </div>
+      )}
+
       {scene.ghost && (
         <div
-          className="absolute left-1/2 top-[38%] w-[min(24rem,88vw)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-line bg-surface p-4 shadow-xl space-y-3"
+          className="absolute left-1/2 top-[34%] w-[min(24rem,88vw)] -translate-x-1/2 -translate-y-1/2 rounded-3xl bg-surface p-5 shadow-soft-lg space-y-3"
           style={{ pointerEvents: 'none' }}
         >
           <div className="flex items-center gap-3 text-small font-mono text-ink-2">
@@ -345,46 +459,88 @@ export function FirstRunTour() {
         </div>
       )}
 
-      {/* Caption — lives above the step bar. */}
-      <div className="absolute left-1/2 bottom-24 -translate-x-1/2 w-[min(28rem,90vw)] text-center">
-        <div className="rounded-full border border-line bg-surface px-4 py-2 text-small font-mono text-ink-2 shadow-lg">
+      {scene.fauxEditor && (
+        <div
+          className="absolute left-1/2 top-[34%] w-[min(26rem,90vw)] -translate-x-1/2 -translate-y-1/2 rounded-3xl bg-surface p-5 shadow-soft-lg space-y-2"
+          style={{ pointerEvents: 'none' }}
+        >
+          <p className="text-micro text-ink-3 uppercase tracking-wide">Latest transcript</p>
+          {editorMode === 'editing' ? (
+            <div className="space-y-2">
+              <div className="w-full p-4 bg-surface border border-ink rounded-xl text-body min-h-[3rem]">
+                {editText}
+                <span className="inline-block w-[2px] h-[1em] bg-ink ml-0.5 align-middle animate-tour-pulse" />
+              </div>
+              <span className="inline-flex h-10 px-4 items-center bg-accent text-accent-fg rounded-xl text-small font-semibold">
+                Done · re-parse
+              </span>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <div className="text-body text-ink">{editText}</div>
+              <span className="text-micro text-ink-3">Re-parse</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {scene.fauxBreakdown && (
+        <div className="absolute inset-0 flex items-end sm:items-center justify-center p-4 pb-36 sm:pb-4">
+          <div
+            className="w-full max-w-md bg-surface rounded-3xl p-6 space-y-3 shadow-soft-lg"
+            style={{ pointerEvents: 'auto' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-baseline justify-between">
+              <h3 className="text-h3">{scene.fauxBreakdown.label}</h3>
+              <span className="text-small text-ink-2 font-mono">{scene.fauxBreakdown.value}</span>
+            </div>
+            <ul className="space-y-2">
+              {breakdown.map((r) => (
+                <li
+                  key={r.key}
+                  className="flex items-baseline justify-between gap-3 border-l-2 border-line pl-3"
+                >
+                  <span className="text-small text-ink truncate">{r.name}</span>
+                  <span className="text-small font-mono text-ink shrink-0">
+                    {Math.round((r.protein_g ?? 0) * 10) / 10}g
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      <div
+        className={`absolute left-1/2 -translate-x-1/2 w-[min(28rem,90vw)] text-center ${
+          captionTop ? 'top-20' : 'bottom-24'
+        }`}
+      >
+        <div className="rounded-2xl bg-surface px-5 py-3 text-small text-ink shadow-soft-lg leading-snug">
           {scene.caption}
         </div>
       </div>
 
-      {cursor.visible && (
-        <div
-          className="absolute left-0 top-0"
-          style={{
-            transform: `translate(${cursor.x - 13}px, ${cursor.y - 13}px)`,
-            transition: reduced.current ? 'none' : 'transform 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
-            pointerEvents: 'none',
-          }}
-        >
-          <div className="h-[26px] w-[26px] rounded-full border-2 border-ink bg-ink/10" />
-        </div>
-      )}
-
-      {/* Step bar: back · counter · next. User drives pacing. */}
       <div
-        className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full border border-line bg-surface px-2 py-1.5 shadow-lg"
+        className="absolute bottom-6 left-1/2 -translate-x-1/2 max-w-[calc(100vw-1.5rem)] flex items-center gap-1 rounded-full bg-surface px-1.5 py-1 shadow-soft-lg"
         style={{ pointerEvents: 'auto' }}
       >
         <button
           onClick={goBack}
           disabled={step === 0}
-          className="text-small font-mono text-ink-2 disabled:text-ink-3 disabled:cursor-not-allowed hover:text-ink px-3 py-1"
+          className="text-micro font-mono text-ink-2 disabled:text-ink-3 disabled:cursor-not-allowed hover:text-ink px-2.5 py-1 whitespace-nowrap"
         >
-          ‹ back
+          ‹ Back
         </button>
-        <span className="text-micro font-mono text-ink-3 px-1">
+        <span className="text-micro font-mono text-ink-3 px-1 whitespace-nowrap tabular-nums">
           {step + 1} / {SCENES.length}
         </span>
         <button
           onClick={goNext}
-          className="text-small font-mono bg-accent text-accent-fg rounded-full px-4 py-1 hover:opacity-90"
+          className="text-micro font-mono bg-accent text-accent-fg rounded-full px-3 py-1 hover:opacity-90 whitespace-nowrap"
         >
-          {isLast ? 'done' : 'next ›'}
+          {isLast ? 'Done' : 'Next ›'}
         </button>
       </div>
 
@@ -393,8 +549,35 @@ export function FirstRunTour() {
         className="absolute top-4 right-4 text-micro font-mono text-ink-3 hover:text-ink underline underline-offset-4"
         style={{ pointerEvents: 'auto' }}
       >
-        skip
+        Skip
       </button>
+    </div>
+  );
+}
+
+// Pixel-matched to components/RecordButton.tsx so the overlay is
+// indistinguishable from the real button while the tour drives state.
+function FauxRecordButton({ state, secs }: { state: 'idle' | 'recording'; secs: number }) {
+  const isRecording = state === 'recording';
+  const mm = String(Math.floor(secs / 60)).padStart(2, '0');
+  const ss = String(secs % 60).padStart(2, '0');
+  return (
+    <div
+      className={[
+        'w-full h-full rounded-2xl text-body font-semibold flex items-center justify-center gap-3 select-none transition-colors shadow-soft',
+        isRecording
+          ? 'bg-signal-red text-white animate-record-pulse'
+          : 'bg-[#EAB308] text-black',
+      ].join(' ')}
+    >
+      {isRecording ? (
+        <Square size={18} fill="currentColor" />
+      ) : (
+        <Circle size={18} fill="currentColor" className="animate-dot-pulse" />
+      )}
+      <span className="font-mono">
+        {isRecording ? `stop · ${mm}:${ss}` : 'tap to record'}
+      </span>
     </div>
   );
 }
