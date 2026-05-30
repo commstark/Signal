@@ -184,7 +184,7 @@ export function TodayView({
         )}
       </section>
 
-      <section className="px-4 mt-8">
+      <section className="px-4 mt-8" data-tour="log">
         <h2 className="text-h3 mb-3">Log</h2>
         {entries.length === 0 ? (
           <p className="text-body text-ink-2">No entries today.</p>

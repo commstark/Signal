@@ -14,6 +14,8 @@ type Route = '/' | '/today';
 interface FauxEditor {
   initial: string;
   edit: { from: string; to: string };
+  // 'idle' shows the saved transcript; 'editing' triggers the typing animation.
+  mode: 'idle' | 'editing';
 }
 
 interface FauxBreakdown {
@@ -33,10 +35,10 @@ interface Scene {
   fauxBreakdown?: FauxBreakdown;
 }
 
-// 14-scene user-driven walkthrough. Each scene = one click. The only things
-// that auto-play inside a scene are the dot vocabulary in the parse scene
-// and the typing animation in the edit scene — both are what the scene is
-// teaching.
+// User-driven walkthrough. Each scene = one click (or one tap anywhere on the
+// page). The only things that auto-play inside a scene are the dot vocabulary
+// in the parse scene and the typing animation in the active edit scene —
+// both are what the scene is teaching.
 const SCENES: Scene[] = [
   {
     route: '/',
@@ -80,10 +82,20 @@ const SCENES: Scene[] = [
   },
   {
     route: '/',
-    caption: 'Got something wrong? Tap the transcript to edit — we’ll re-parse the numbers.',
+    caption: 'Got something wrong? Tap the transcript to edit.',
     fauxEditor: {
       initial: 'Two scoops of whey and a turkey sandwich.',
       edit: { from: 'turkey', to: 'ham' },
+      mode: 'idle',
+    },
+  },
+  {
+    route: '/',
+    caption: 'We’ll re-parse to update your numbers.',
+    fauxEditor: {
+      initial: 'Two scoops of whey and a turkey sandwich.',
+      edit: { from: 'turkey', to: 'ham' },
+      mode: 'editing',
     },
   },
   {
@@ -114,9 +126,9 @@ const SCENES: Scene[] = [
   },
   {
     route: '/today',
-    caption: 'Tap back any time to keep logging.',
-    scrollTo: 'top',
-    highlightTarget: 'back-link',
+    caption: 'And your log — every entry, with the transcript you said. Tap one to edit if it’s off.',
+    scrollTo: 'log',
+    highlightTarget: 'log',
   },
 ];
 
@@ -270,33 +282,33 @@ export function FirstRunTour() {
       }
     }
 
+    // Edit scenes: idle shows the saved transcript; editing replays the
+    // animation slowly so the user actually sees the correction happen.
     if (scene.fauxEditor) {
-      const { initial, edit } = scene.fauxEditor;
+      const { initial, edit, mode } = scene.fauxEditor;
       setEditText(initial);
-      setEditorMode('idle');
-      timers.current.push(
-        setTimeout(() => setEditorMode('editing'), reduced.current ? 50 : 700),
-      );
-      const start = initial.indexOf(edit.from);
-      if (start >= 0) {
-        const before = initial.slice(0, start);
-        const after = initial.slice(start + edit.from.length);
-        let delay = reduced.current ? 100 : 1400;
-        const charMs = reduced.current ? 8 : 75;
-        for (let i = edit.from.length - 1; i >= 0; i--) {
-          const snapshot = before + edit.from.slice(0, i) + after;
-          timers.current.push(setTimeout(() => setEditText(snapshot), delay));
-          delay += charMs;
+      setEditorMode(mode);
+
+      if (mode === 'editing') {
+        const start = initial.indexOf(edit.from);
+        if (start >= 0) {
+          const before = initial.slice(0, start);
+          const after = initial.slice(start + edit.from.length);
+          let delay = reduced.current ? 100 : 700;
+          const charMs = reduced.current ? 8 : 130; // slowed from 75ms
+          for (let i = edit.from.length - 1; i >= 0; i--) {
+            const snapshot = before + edit.from.slice(0, i) + after;
+            timers.current.push(setTimeout(() => setEditText(snapshot), delay));
+            delay += charMs;
+          }
+          delay += reduced.current ? 50 : 350; // clear pause between delete and retype
+          for (let i = 1; i <= edit.to.length; i++) {
+            const snapshot = before + edit.to.slice(0, i) + after;
+            timers.current.push(setTimeout(() => setEditText(snapshot), delay));
+            delay += charMs;
+          }
+          // Stay in editing mode — user clicks Next when ready.
         }
-        delay += reduced.current ? 50 : 200;
-        for (let i = 1; i <= edit.to.length; i++) {
-          const snapshot = before + edit.to.slice(0, i) + after;
-          timers.current.push(setTimeout(() => setEditText(snapshot), delay));
-          delay += charMs;
-        }
-        timers.current.push(
-          setTimeout(() => setEditorMode('idle'), delay + (reduced.current ? 100 : 700)),
-        );
       }
     }
 
@@ -312,13 +324,18 @@ export function FirstRunTour() {
     }
 
     const compute = () => {
+      // Breakdown modal eats the bottom half on mobile — always put the
+      // caption at top so they don't overlap.
+      if (scene.fauxBreakdown) {
+        setBox(null);
+        setCaptionTop(true);
+        return;
+      }
       if (scene.highlightTarget) {
         const el = document.querySelector<HTMLElement>(`[data-tour="${scene.highlightTarget}"]`);
         if (el) {
           const r = el.getBoundingClientRect();
           setBox({ x: r.left - 6, y: r.top - 6, w: r.width + 12, h: r.height + 12 });
-          // Flip caption to top if the highlight is in the bottom half — the
-          // default-bottom caption would otherwise cover what we're pointing at.
           setCaptionTop(r.top + r.height / 2 > window.innerHeight * 0.55);
         } else {
           setBox(null);
@@ -397,20 +414,19 @@ export function FirstRunTour() {
   if (!mounted || !active || !scene) return null;
   if (pathname !== scene.route) return null;
 
-  const onHome = scene.route === '/';
   const isLast = step === SCENES.length - 1;
+  const isRecording = scene.fauxButton === 'recording';
 
   return (
     <div className="fixed inset-0 z-[60]" style={{ pointerEvents: 'none' }}>
+      {/* Scrim: barely-there fuzz so the page stays readable beneath. The
+         entire scrim is a giant Next button — tap anywhere advances. */}
       <div
         className={`absolute inset-0 ${
-          scene.fauxBreakdown
-            ? 'bg-black/50 backdrop-blur-sm'
-            : onHome
-            ? 'bg-black/20 backdrop-blur-md'
-            : 'bg-transparent'
+          scene.fauxBreakdown ? 'bg-black/35 backdrop-blur-[2px]' : 'bg-black/8 backdrop-blur-[1px]'
         }`}
-        style={{ pointerEvents: onHome || scene.fauxBreakdown ? 'auto' : 'none' }}
+        style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+        onClick={goNext}
         aria-hidden
       />
 
@@ -442,10 +458,20 @@ export function FirstRunTour() {
         </div>
       )}
 
-      {scene.ghost && (
+      {/* Voice waveform — only while recording. Reads as "we're listening." */}
+      {isRecording && buttonRect && <VoiceWaves buttonRect={buttonRect} />}
+
+      {/* Ghost capture row — positioned where the real CaptureRow appears
+         (right below the record button), so users see the actual layout. */}
+      {scene.ghost && buttonRect && (
         <div
-          className="absolute left-1/2 top-[34%] w-[min(24rem,88vw)] -translate-x-1/2 -translate-y-1/2 rounded-3xl bg-surface p-5 shadow-soft-lg space-y-3"
-          style={{ pointerEvents: 'none' }}
+          className="absolute rounded-2xl bg-surface p-4 shadow-soft space-y-2"
+          style={{
+            left: buttonRect.x,
+            top: buttonRect.y + buttonRect.h + 16,
+            width: buttonRect.w,
+            pointerEvents: 'none',
+          }}
         >
           <div className="flex items-center gap-3 text-small font-mono text-ink-2">
             <StatusDot tone={ghostTone} />
@@ -461,7 +487,7 @@ export function FirstRunTour() {
 
       {scene.fauxEditor && (
         <div
-          className="absolute left-1/2 top-[34%] w-[min(26rem,90vw)] -translate-x-1/2 -translate-y-1/2 rounded-3xl bg-surface p-5 shadow-soft-lg space-y-2"
+          className="absolute left-1/2 top-[32%] w-[min(26rem,90vw)] -translate-x-1/2 -translate-y-1/2 rounded-3xl bg-surface p-5 shadow-soft-lg space-y-2"
           style={{ pointerEvents: 'none' }}
         >
           <p className="text-micro text-ink-3 uppercase tracking-wide">Latest transcript</p>
@@ -485,15 +511,16 @@ export function FirstRunTour() {
       )}
 
       {scene.fauxBreakdown && (
-        <div className="absolute inset-0 flex items-end sm:items-center justify-center p-4 pb-36 sm:pb-4">
+        <div className="absolute inset-0 flex items-end sm:items-center justify-center p-4 pb-36 sm:pb-4 pointer-events-none">
           <div
-            className="w-full max-w-md bg-surface rounded-3xl p-6 space-y-3 shadow-soft-lg"
-            style={{ pointerEvents: 'auto' }}
+            className="w-full max-w-md bg-surface rounded-3xl p-6 space-y-3 shadow-soft-lg pointer-events-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-baseline justify-between">
               <h3 className="text-h3">{scene.fauxBreakdown.label}</h3>
-              <span className="text-small text-ink-2 font-mono">{scene.fauxBreakdown.value}</span>
+              <span className="text-small text-ink-2 font-mono tabular-nums">
+                {scene.fauxBreakdown.value}
+              </span>
             </div>
             <ul className="space-y-2">
               {breakdown.map((r) => (
@@ -502,7 +529,7 @@ export function FirstRunTour() {
                   className="flex items-baseline justify-between gap-3 border-l-2 border-line pl-3"
                 >
                   <span className="text-small text-ink truncate">{r.name}</span>
-                  <span className="text-small font-mono text-ink shrink-0">
+                  <span className="text-small font-mono text-ink shrink-0 tabular-nums">
                     {Math.round((r.protein_g ?? 0) * 10) / 10}g
                   </span>
                 </li>
@@ -513,7 +540,7 @@ export function FirstRunTour() {
       )}
 
       <div
-        className={`absolute left-1/2 -translate-x-1/2 w-[min(28rem,90vw)] text-center ${
+        className={`absolute left-1/2 -translate-x-1/2 w-[min(28rem,90vw)] text-center pointer-events-none ${
           captionTop ? 'top-20' : 'bottom-24'
         }`}
       >
@@ -525,6 +552,7 @@ export function FirstRunTour() {
       <div
         className="absolute bottom-6 left-1/2 -translate-x-1/2 max-w-[calc(100vw-1.5rem)] flex items-center gap-1 rounded-full bg-surface px-1.5 py-1 shadow-soft-lg"
         style={{ pointerEvents: 'auto' }}
+        onClick={(e) => e.stopPropagation()}
       >
         <button
           onClick={goBack}
@@ -545,7 +573,10 @@ export function FirstRunTour() {
       </div>
 
       <button
-        onClick={skip}
+        onClick={(e) => {
+          e.stopPropagation();
+          skip();
+        }}
         className="absolute top-4 right-4 text-micro font-mono text-ink-3 hover:text-ink underline underline-offset-4"
         style={{ pointerEvents: 'auto' }}
       >
@@ -576,8 +607,33 @@ function FauxRecordButton({ state, secs }: { state: 'idle' | 'recording'; secs: 
         <Circle size={18} fill="currentColor" className="animate-dot-pulse" />
       )}
       <span className="font-mono">
-        {isRecording ? `stop · ${mm}:${ss}` : 'tap to record'}
+        {isRecording ? `Stop · ${mm}:${ss}` : 'Tap to record'}
       </span>
+    </div>
+  );
+}
+
+// Animated red bars above the recording button — reads as "we're listening,
+// keep talking." Different per-bar animation delays produce a waveform feel.
+function VoiceWaves({ buttonRect }: { buttonRect: Box }) {
+  const delays = ['0ms', '120ms', '240ms', '120ms', '0ms'];
+  return (
+    <div
+      className="absolute flex items-center gap-1.5"
+      style={{
+        left: buttonRect.x + buttonRect.w / 2,
+        top: buttonRect.y - 40,
+        transform: 'translateX(-50%)',
+        pointerEvents: 'none',
+      }}
+    >
+      {delays.map((delay, i) => (
+        <span
+          key={i}
+          className="block w-1.5 h-6 bg-signal-red rounded-full animate-tour-wave origin-center"
+          style={{ animationDelay: delay }}
+        />
+      ))}
     </div>
   );
 }
