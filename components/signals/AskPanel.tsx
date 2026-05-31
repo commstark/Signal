@@ -67,11 +67,8 @@ export function AskPanel({ initialHistory }: { initialHistory: ChatTurn[] }) {
 
   return (
     <section className="mt-6 rounded-2xl bg-surface shadow-soft p-5 space-y-4">
-      <header className="flex items-baseline justify-between">
+      <header>
         <h3 className="text-h3">Ask</h3>
-        <span className="text-micro text-ink-3 font-mono">
-          Grounded in your data · Sonnet 4.6 + tools
-        </span>
       </header>
 
       <div className="space-y-2">
