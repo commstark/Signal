@@ -599,6 +599,26 @@ create index if not exists insight_feedback_user_idx
   on insight_feedback(user_id, created_at desc);
 
 -- =====================================================================
+-- Daily overrides — vacation / illness exclusions
+-- =====================================================================
+-- One row per (user, date). excluded=true drops the day from adherence
+-- denominators and from insight candidate denominators so a vacation
+-- doesn't pretend to be a miss. reason is free-text.
+create table if not exists daily_overrides (
+  id          uuid primary key default uuid_generate_v4(),
+  user_id     uuid not null references users(id) on delete cascade,
+  date        date not null,
+  excluded    boolean not null default true,
+  reason      text,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now(),
+  unique (user_id, date)
+);
+
+create index if not exists daily_overrides_user_date_idx
+  on daily_overrides(user_id, date);
+
+-- =====================================================================
 -- Signals chats — /signals Q&A history (Sonnet + tool use)
 -- =====================================================================
 -- One row per question. answer_text holds the final narrated answer;
@@ -654,6 +674,7 @@ alter table user_preferences         enable row level security;
 alter table weekly_insights          enable row level security;
 alter table insight_feedback         enable row level security;
 alter table signals_chats            enable row level security;
+alter table daily_overrides          enable row level security;
 
 -- Permissive policy for the single-user case. Replace with auth.uid() checks when going multi-user.
 -- For now: rely on service-role key from Next.js API routes, no anonymous access.

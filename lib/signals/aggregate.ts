@@ -38,6 +38,11 @@ export interface AdherenceCell {
   // Items that are in the active stack but weren't logged either way that
   // day. Surfaced in the popup so you can see exactly what slipped.
   missing_items: string[];
+  // True if the user marked this day excluded (vacation / illness etc).
+  // Excluded days render with a hatch pattern and are dropped from
+  // any adherence aggregate the dashboard or insights compute.
+  excluded: boolean;
+  exclude_reason: string | null;
 }
 
 export interface InterventionMarker {
@@ -76,7 +81,7 @@ export async function loadSignalsBundle(userId: string, days: 7 | 30 | 60 | 90 =
   const end = isoDay(now);
   const startIso = `${start}T00:00:00Z`;
 
-  const [hlRes, exRes, supRes, ivRes, stackRes] = await Promise.all([
+  const [hlRes, exRes, supRes, ivRes, stackRes, ovRes] = await Promise.all([
     sb
       .from('health_logs')
       .select('occurred_at, protein_g, calories_kcal, carbs_g, sugar_g, fiber_g')
@@ -102,7 +107,21 @@ export async function loadSignalsBundle(userId: string, days: 7 | 30 | 60 | 90 =
       .select('name')
       .eq('user_id', userId)
       .eq('active', true),
+    sb
+      .from('daily_overrides')
+      .select('date, excluded, reason')
+      .eq('user_id', userId)
+      .gte('date', start),
   ]);
+
+  const excludedByDate = new Map<string, { excluded: boolean; reason: string | null }>();
+  for (const o of (ovRes.data ?? []) as Array<{
+    date: string;
+    excluded: boolean;
+    reason: string | null;
+  }>) {
+    excludedByDate.set(o.date.slice(0, 10), { excluded: !!o.excluded, reason: o.reason ?? null });
+  }
 
   const activeStack = ((stackRes.data ?? []) as Array<{ name: string }>)
     .map((s) => String(s.name).trim())
@@ -275,14 +294,19 @@ export async function loadSignalsBundle(userId: string, days: 7 | 30 | 60 | 90 =
     }
     const total = stackSize > 0 ? stackSize : taken_items.length + skipped_items.length;
     const hasAnyLog = takenSet.size + skippedSet.size > 0;
+    const override = excludedByDate.get(d);
     adherence.push({
       date: d,
       taken: taken_items.length,
-      total: hasAnyLog || stackSize > 0 ? total : 0,
+      // total only counts when there's at least one log — a day with zero
+      // logs renders blank (user just didn't track), not 0% peach.
+      total: hasAnyLog ? total : 0,
       skipped: skipped_items.length,
       taken_items,
       skipped_items,
       missing_items,
+      excluded: !!override?.excluded,
+      exclude_reason: override?.reason ?? null,
     });
   }
 
