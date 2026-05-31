@@ -73,9 +73,9 @@ export interface NutritionBreakdownRow {
   carbs_g: number | null;
 }
 
-export async function fetchTodayNutritionBreakdown(userId: string): Promise<NutritionBreakdownRow[]> {
+export async function fetchTodayNutritionBreakdown(userId: string, now: Date = new Date()): Promise<NutritionBreakdownRow[]> {
   const sb = createSupabaseAdmin();
-  const { startIso, endIso } = dayBoundsPst();
+  const { startIso, endIso } = dayBoundsPst(now);
 
   const { data: hls } = await sb
     .from('health_logs')
@@ -154,9 +154,9 @@ export async function fetchTodayNutritionBreakdown(userId: string): Promise<Nutr
   return rows;
 }
 
-export async function fetchTodayForUser(userId: string): Promise<TodaySummary> {
+export async function fetchTodayForUser(userId: string, now: Date = new Date()): Promise<TodaySummary> {
   const sb = createSupabaseAdmin();
-  const { startIso, endIso } = dayBoundsPst();
+  const { startIso, endIso } = dayBoundsPst(now);
 
   const { data: hl } = await sb
     .from('health_logs')
@@ -219,9 +219,9 @@ export interface TodayEntry {
   parse_warnings: string[] | null;
 }
 
-export async function fetchTodayEntries(userId: string): Promise<TodayEntry[]> {
+export async function fetchTodayEntries(userId: string, now: Date = new Date()): Promise<TodayEntry[]> {
   const sb = createSupabaseAdmin();
-  const { startIso, endIso } = dayBoundsPst();
+  const { startIso, endIso } = dayBoundsPst(now);
   const { data } = await sb
     .from('entries')
     .select('id, occurred_at, intent, transcript, parse_status, parse_warnings')
@@ -252,9 +252,9 @@ export interface TodayWorkouts {
   exercises: TodayWorkoutExercise[];
 }
 
-export async function fetchTodayWorkouts(userId: string): Promise<TodayWorkouts> {
+export async function fetchTodayWorkouts(userId: string, now: Date = new Date()): Promise<TodayWorkouts> {
   const sb = createSupabaseAdmin();
-  const { startIso, endIso } = dayBoundsPst();
+  const { startIso, endIso } = dayBoundsPst(now);
 
   // Start from exercises — only count sessions that actually have work
   // in them. Avoids "1 session · 0 exercises" when a mixed entry left
@@ -376,9 +376,9 @@ function detectGroupReference(name: string): 'morning_stack' | 'day_stack' | 'sl
   return null;
 }
 
-export async function fetchTodaySupplements(userId: string): Promise<TodaySupplements> {
+export async function fetchTodaySupplements(userId: string, now: Date = new Date()): Promise<TodaySupplements> {
   const sb = createSupabaseAdmin();
-  const { startIso, endIso } = dayBoundsPst();
+  const { startIso, endIso } = dayBoundsPst(now);
 
   const { data: stack } = await sb
     .from('supplements')
