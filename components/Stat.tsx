@@ -12,8 +12,9 @@ interface Props {
 // Diagonal fill: bottom-right corner is the anchor; as progress grows, the
 // color sweeps up-and-to-the-left across the tile. A soft 6% edge keeps the
 // fill from looking like a hard slice. Tones map to existing palette tokens
-// (lilac for goals, peach for ceilings) via inline rgb-with-alpha so we get
-// transparent stops without redefining colors.
+// (lilac for goals, peach for ceilings). Uses legacy rgba() syntax for
+// iOS Safari compatibility — the space-separated rgb(r g b / a) form is
+// supported in modern Safari but quietly fails on older WebKit revisions.
 export function Stat({ value, label, meta, progress, tone = 'goal' }: Props) {
   const clamped = progress != null ? Math.min(Math.max(progress, 0), 1) : null;
   const overshoot = progress != null && progress > 1;
@@ -22,7 +23,7 @@ export function Stat({ value, label, meta, progress, tone = 'goal' }: Props) {
   const softEnd = Math.min(100, pct + 6);
   const background =
     clamped != null && clamped > 0
-      ? `linear-gradient(to top left, rgb(${rgb} / 0.7) 0%, rgb(${rgb} / 0.7) ${pct}%, rgb(${rgb} / 0) ${softEnd}%, rgb(${rgb} / 0) 100%)`
+      ? `linear-gradient(to top left, rgba(${rgb}, 0.7) 0%, rgba(${rgb}, 0.7) ${pct}%, rgba(${rgb}, 0) ${softEnd}%, rgba(${rgb}, 0) 100%)`
       : undefined;
 
   return (
