@@ -35,7 +35,7 @@ export function AdherenceHeatmap({ data }: Props) {
       <header className="mb-3">
         <h3 className="text-h3">Supplement adherence</h3>
         <p className="text-micro text-ink-3 font-mono">
-          Lilac = 100% taken. Mint = 80%+. Peach = below 80%. Blank = nothing logged. Tap a day for the breakdown.
+          % of your active stack taken. Lilac = 100%. Mint = 80%+. Peach = below 80%. Blank = nothing logged. Tap a day for taken / skipped / missing.
         </p>
       </header>
       <div className="overflow-x-auto">
@@ -44,9 +44,13 @@ export function AdherenceHeatmap({ data }: Props) {
           style={{ gridTemplateColumns: `auto repeat(${weeks.length}, 18px)` }}
         >
           <div />
-          {weeks.map(([w]) => (
-            <div key={w} className="text-micro text-ink-3 text-center font-mono">
-              {weekLabel(w)}
+          {weeks.map(([w], idx) => (
+            <div
+              key={w}
+              className="text-[10px] text-ink-3 text-center font-mono leading-none h-3 flex items-end justify-center"
+            >
+              {/* Every other week label so they stop overlapping at 18px column width. */}
+              {idx % 2 === 0 ? weekLabel(w) : ''}
             </div>
           ))}
           {DOW.map((label, idx) => (
@@ -127,16 +131,17 @@ function SelectedDayPanel({ cell, onClose }: { cell: AdherenceCell; onClose: () 
         <div className="flex items-baseline gap-3">
           <span className="text-body text-ink">{prettyDate(cell.date)}</span>
           <span className="text-small text-ink-2 font-mono tabular-nums">
-            {cell.taken}/{cell.total} · {pct}%
+            {cell.taken}/{cell.total} of stack · {pct}%
           </span>
         </div>
         <button onClick={onClose} aria-label="Close" className="text-micro text-ink-3 hover:text-ink">
           ×
         </button>
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <ItemList title="Taken" items={cell.taken_items} icon="✓" iconClass="text-ink" />
         <ItemList title="Skipped" items={cell.skipped_items} icon="✗" iconClass="text-signal-red" />
+        <ItemList title="Missing" items={cell.missing_items} icon="–" iconClass="text-ink-3" />
       </div>
     </div>
   );
