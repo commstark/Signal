@@ -11,9 +11,12 @@ interface Props {
   field: 'protein_g' | 'calories_kcal' | 'fiber_g' | 'water_ml' | 'sugar_g' | 'added_sugars_g' | 'carbs_g';
   unit: string; // 'g', 'kcal', etc.
   rows: NutritionBreakdownRow[];
+  progress?: number;
+  tone?: 'goal' | 'ceiling';
+  target?: { value: number; unit: string };
 }
 
-export function NutritionTile({ value, label, meta, field, unit, rows }: Props) {
+export function NutritionTile({ value, label, meta, field, unit, rows, progress, tone, target }: Props) {
   const [open, setOpen] = useState(false);
   const contributions = rows
     .map((r) => ({
@@ -27,7 +30,7 @@ export function NutritionTile({ value, label, meta, field, unit, rows }: Props) 
   return (
     <>
       <button onClick={() => setOpen(true)} className="text-left w-full h-full">
-        <Stat value={value} label={label} meta={meta} />
+        <Stat value={value} label={label} meta={meta} progress={progress} tone={tone} />
       </button>
 
       {open && (
@@ -43,6 +46,12 @@ export function NutritionTile({ value, label, meta, field, unit, rows }: Props) 
               <h3 className="text-h3">{label}</h3>
               <span className="text-small text-ink-2 font-mono tabular-nums">{value}</span>
             </div>
+
+            {target && (
+              <p className="text-micro text-ink-3 font-mono">
+                {tone === 'ceiling' ? 'Ceiling' : 'Target'}: {target.value}{target.unit}
+              </p>
+            )}
 
             {contributions.length === 0 ? (
               <p className="text-body text-ink-2">No entries contributed to this stat yet.</p>
