@@ -27,12 +27,17 @@ export interface WeeklyWorkoutVolume {
 
 export interface AdherenceCell {
   date: string; // YYYY-MM-DD
+  // Stack-anchored counts: numerator/denominator are based on the user's
+  // current active stack, not just what was logged. So "I take 14 of 14"
+  // reads as 100% only if everything in your stack got logged as taken.
   taken: number;
-  skipped: number;
-  // 0 if neither taken nor skipped logged (assumed not-recorded day).
-  total: number;
+  total: number; // stack size at read time
+  skipped: number; // diagnostic only — doesn't change taken/total
   taken_items: string[];
   skipped_items: string[];
+  // Items that are in the active stack but weren't logged either way that
+  // day. Surfaced in the popup so you can see exactly what slipped.
+  missing_items: string[];
 }
 
 export interface InterventionMarker {
@@ -58,7 +63,7 @@ export async function loadSignalsBundle(userId: string, days: 7 | 30 | 60 | 90 =
   const end = isoDay(now);
   const startIso = `${start}T00:00:00Z`;
 
-  const [hlRes, exRes, supRes, ivRes] = await Promise.all([
+  const [hlRes, exRes, supRes, ivRes, stackRes] = await Promise.all([
     sb
       .from('health_logs')
       .select('occurred_at, protein_g, calories_kcal, carbs_g, sugar_g, fiber_g')
@@ -79,7 +84,18 @@ export async function loadSignalsBundle(userId: string, days: 7 | 30 | 60 | 90 =
       .select('name, start_date')
       .eq('user_id', userId)
       .gte('start_date', start),
+    sb
+      .from('supplements')
+      .select('name')
+      .eq('user_id', userId)
+      .eq('active', true),
   ]);
+
+  const activeStack = ((stackRes.data ?? []) as Array<{ name: string }>)
+    .map((s) => String(s.name).trim())
+    .filter(Boolean);
+  const stackLowerToCanonical = new Map<string, string>();
+  for (const name of activeStack) stackLowerToCanonical.set(name.toLowerCase(), name);
 
   const macroMap = new Map<string, MacroDay>();
   for (const h of (hlRes.data ?? []) as Array<{
@@ -144,38 +160,62 @@ export async function loadSignalsBundle(userId: string, days: 7 | 30 | 60 | 90 =
   }
   const workouts = Array.from(weekMap.values()).sort((a, b) => a.week_start.localeCompare(b.week_start));
 
-  const adhMap = new Map<string, AdherenceCell>();
+  // Per-day take / skip name sets, lowercased for matching against stack.
+  const dayTaken = new Map<string, Set<string>>();
+  const daySkipped = new Map<string, Set<string>>();
   for (const s of (supRes.data ?? []) as Array<{
     occurred_at: string;
     taken: boolean | null;
     supplement_name: string | null;
   }>) {
     const d = pstDay(s.occurred_at);
-    const cell = adhMap.get(d) ?? {
-      date: d,
-      taken: 0,
-      skipped: 0,
-      total: 0,
-      taken_items: [],
-      skipped_items: [],
-    };
-    const name = (s.supplement_name ?? '').trim();
-    if (s.taken) {
-      cell.taken += 1;
-      if (name) cell.taken_items.push(name);
-    } else {
-      cell.skipped += 1;
-      if (name) cell.skipped_items.push(name);
+    const lower = (s.supplement_name ?? '').trim().toLowerCase();
+    if (!lower) continue;
+    const bucket = s.taken ? dayTaken : daySkipped;
+    let set = bucket.get(d);
+    if (!set) {
+      set = new Set();
+      bucket.set(d, set);
     }
-    cell.total = cell.taken + cell.skipped;
-    adhMap.set(d, cell);
+    set.add(lower);
   }
+
+  const adherence: AdherenceCell[] = [];
+  const stackSize = activeStack.length;
   for (let i = days; i >= 0; i--) {
     const d = isoDay(addDays(now, -i));
-    if (!adhMap.has(d))
-      adhMap.set(d, { date: d, taken: 0, skipped: 0, total: 0, taken_items: [], skipped_items: [] });
+    const takenSet = dayTaken.get(d) ?? new Set();
+    const skippedSet = daySkipped.get(d) ?? new Set();
+    const taken_items: string[] = [];
+    const skipped_items: string[] = [];
+    const missing_items: string[] = [];
+    if (stackSize > 0) {
+      // Walk the stack, classifying each by whether the user logged it
+      // taken / skipped / not-at-all that day.
+      for (const name of activeStack) {
+        const lower = name.toLowerCase();
+        if (takenSet.has(lower)) taken_items.push(name);
+        else if (skippedSet.has(lower)) skipped_items.push(name);
+        else missing_items.push(name);
+      }
+    } else {
+      // No defined stack yet — fall back to raw log names so the user still
+      // sees their per-day activity even before they curate /stack.
+      for (const lower of takenSet) taken_items.push(stackLowerToCanonical.get(lower) ?? lower);
+      for (const lower of skippedSet) skipped_items.push(stackLowerToCanonical.get(lower) ?? lower);
+    }
+    const total = stackSize > 0 ? stackSize : taken_items.length + skipped_items.length;
+    const hasAnyLog = takenSet.size + skippedSet.size > 0;
+    adherence.push({
+      date: d,
+      taken: taken_items.length,
+      total: hasAnyLog || stackSize > 0 ? total : 0,
+      skipped: skipped_items.length,
+      taken_items,
+      skipped_items,
+      missing_items,
+    });
   }
-  const adherence = Array.from(adhMap.values()).sort((a, b) => a.date.localeCompare(b.date));
 
   const interventions = ((ivRes.data ?? []) as Array<{ name: string; start_date: string }>)
     .map((i) => ({ date: i.start_date.slice(0, 10), name: i.name }))
