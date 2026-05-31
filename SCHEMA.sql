@@ -599,6 +599,34 @@ create index if not exists insight_feedback_user_idx
   on insight_feedback(user_id, created_at desc);
 
 -- =====================================================================
+-- Signals chats — /signals Q&A history (Sonnet + tool use)
+-- =====================================================================
+-- One row per question. answer_text holds the final narrated answer;
+-- chart_specs is zero-or-more chart specs (JSON) the client renders
+-- inline; evidence is a bag of tool-result snippets the model leaned on,
+-- so a future "show how" expand can prove the numbers came from real
+-- data, not hallucination. cost_usd is per-question so we can audit
+-- spend without aggregating from api_usage.
+create table if not exists signals_chats (
+  id              uuid primary key default uuid_generate_v4(),
+  user_id         uuid not null references users(id) on delete cascade,
+  question        text not null,
+  answer_text     text,
+  chart_specs     jsonb not null default '[]'::jsonb,
+  evidence        jsonb not null default '[]'::jsonb,
+  tool_calls      int not null default 0,
+  input_tokens    int not null default 0,
+  output_tokens   int not null default 0,
+  cost_usd        numeric(8,5) not null default 0,
+  duration_ms     int,
+  status          text not null default 'ok' check (status in ('ok', 'failed')),
+  created_at      timestamptz not null default now()
+);
+
+create index if not exists signals_chats_user_created_idx
+  on signals_chats(user_id, created_at desc);
+
+-- =====================================================================
 -- RLS — simple gate. Single user, but enable for safety in case multi-user later.
 -- =====================================================================
 alter table users                    enable row level security;
@@ -625,6 +653,7 @@ alter table personas                 enable row level security;
 alter table user_preferences         enable row level security;
 alter table weekly_insights          enable row level security;
 alter table insight_feedback         enable row level security;
+alter table signals_chats            enable row level security;
 
 -- Permissive policy for the single-user case. Replace with auth.uid() checks when going multi-user.
 -- For now: rely on service-role key from Next.js API routes, no anonymous access.
