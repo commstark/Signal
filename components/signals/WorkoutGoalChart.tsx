@@ -47,8 +47,14 @@ export function WorkoutGoalChart({ data, weeklyTarget }: Props) {
             Filled dot = trained that day. Tap a day for what you did.
           </p>
         </div>
-        <div className={`text-h1 font-semibold tabular-nums ${headerColor}`}>
-          {currentWeekCount} <span className="text-small text-ink-3 font-mono">/ {weeklyTarget}</span>
+        <div className="text-right">
+          <div className={`text-h1 font-semibold tabular-nums leading-none ${headerColor}`}>
+            {currentWeekCount}
+            <span className="text-small text-ink-3 font-mono"> / {weeklyTarget}</span>
+          </div>
+          <div className="text-micro text-ink-3 font-mono uppercase tracking-wide mt-1">
+            workouts this week
+          </div>
         </div>
       </header>
 
