@@ -13,6 +13,8 @@ import { NutritionTile } from '@/components/NutritionTile';
 import { TranscriptEditor } from '@/components/TranscriptEditor';
 import { StatusDot, type StatusTone } from '@/components/StatusDot';
 import { PendingRefresher } from '@/components/PendingRefresher';
+import { InsightsSection } from '@/components/InsightsSection';
+import type { ActiveInsight } from '@/lib/insights/load';
 
 export interface TodayViewData {
   today: TodaySummary;
@@ -31,8 +33,9 @@ export function TodayView({
   workouts,
   supplements,
   breakdown,
+  insights,
   demo = false,
-}: TodayViewData & { demo?: boolean }) {
+}: TodayViewData & { insights?: ActiveInsight[]; demo?: boolean }) {
   const hasPending = !demo && entries.some((e) => e.parse_status === 'pending');
 
   return (
@@ -119,6 +122,8 @@ export function TodayView({
         <Stat value={today.mood_avg != null ? today.mood_avg.toFixed(1) : '—'} label="mood avg" />
       </section>
 
+      {!demo && <InsightsSection insights={insights ?? []} />}
+
       <section className="px-4 mt-8" data-tour="workouts">
         <h2 className="text-h3 mb-3">Workouts</h2>
         {workouts.exercises.length === 0 && workouts.session_count === 0 ? (
@@ -184,7 +189,7 @@ export function TodayView({
         )}
       </section>
 
-      <section className="px-4 mt-8">
+      <section className="px-4 mt-8" data-tour="log">
         <h2 className="text-h3 mb-3">Log</h2>
         {entries.length === 0 ? (
           <p className="text-body text-ink-2">No entries today.</p>
