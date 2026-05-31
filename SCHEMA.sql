@@ -15,12 +15,13 @@ create extension if not exists "uuid-ossp";
 -- auth.users row is created via magic-link sign-in. profile_md and
 -- timezone can be edited from Settings later.
 create table if not exists users (
-  id          uuid primary key references auth.users(id) on delete cascade,
-  email       text unique,
-  timezone    text not null default 'America/Los_Angeles',
-  profile_md  text,                                         -- free-text health background (markdown), fed into Sonnet as cached context
-  targets     jsonb not null default '{}'::jsonb,           -- daily floor / ceiling overrides; defaults in lib/targets.ts
-  created_at  timestamptz not null default now()
+  id              uuid primary key references auth.users(id) on delete cascade,
+  email           text unique,
+  timezone        text not null default 'America/Los_Angeles',
+  profile_md      text,                                     -- free-text health background (markdown), fed into Sonnet as cached context
+  targets         jsonb not null default '{}'::jsonb,       -- daily floor / ceiling overrides; defaults in lib/targets.ts. Per-bodyweight ratios live under *_per_lb keys and resolve at read time against body_weight_lb.
+  body_weight_lb  numeric(5,1),                             -- current bodyweight in pounds; multiplied against targets.*_per_lb at read time
+  created_at      timestamptz not null default now()
 );
 
 -- Auto-create a public.users row whenever someone signs in for the first time.

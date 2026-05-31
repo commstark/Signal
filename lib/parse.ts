@@ -6,6 +6,7 @@ import { WORKOUT_LOG_SYSTEM, workoutLogUserPrompt } from './prompts/parse-workou
 import { SUPPLEMENT_LOG_SYSTEM, supplementLogUserPrompt } from './prompts/parse-supplement';
 import { INTERVENTION_SYSTEM, interventionUserPrompt } from './prompts/parse-intervention';
 import { PREFERENCE_PARSE_SYSTEM, preferenceParseUserPrompt } from './prompts/parse-preference';
+import { TARGET_PARSE_SYSTEM, targetParseUserPrompt } from './prompts/parse-target';
 import type { UserCalibrations } from './types';
 
 export interface ParseUsage {
@@ -112,6 +113,14 @@ export async function parsePreference(transcript: string) {
   return callHaiku({
     system: PREFERENCE_PARSE_SYSTEM,
     user: preferenceParseUserPrompt(transcript),
+    maxTokens: 512,
+  });
+}
+
+export async function parseTarget(transcript: string) {
+  return callHaiku({
+    system: TARGET_PARSE_SYSTEM,
+    user: targetParseUserPrompt(transcript),
     maxTokens: 512,
   });
 }

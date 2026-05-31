@@ -21,18 +21,75 @@ const DEFAULT_TARGETS: Targets = {
   sugar_g_ceiling: 50,
 };
 
+// Keys we accept as overrides in users.targets. Voice-set targets follow
+// the same naming so /today tiles read straight through.
+const FLOOR_KEYS: Array<keyof Targets> = [
+  'protein_g',
+  'calories_kcal',
+  'carbs_g',
+  'fiber_g',
+  'water_ml',
+];
+
+const PER_LB_KEYS = [
+  'protein_g_per_lb',
+  'calories_kcal_per_lb',
+  'carbs_g_per_lb',
+  'fiber_g_per_lb',
+  'water_ml_per_lb',
+] as const;
+type PerLbKey = (typeof PER_LB_KEYS)[number];
+
+function floorKeyFromPerLb(k: PerLbKey): keyof Targets {
+  return k.replace(/_per_lb$/, '') as keyof Targets;
+}
+
 export async function loadUserTargets(userId: string): Promise<Targets> {
   const sb = createSupabaseAdmin();
-  const { data } = await sb.from('users').select('targets').eq('id', userId).maybeSingle();
-  const overrides = (data?.targets ?? {}) as Partial<Targets>;
-  // Only accept positive finite numbers as overrides; ignore anything else.
+  const { data } = await sb
+    .from('users')
+    .select('targets, body_weight_lb')
+    .eq('id', userId)
+    .maybeSingle();
+  const raw = (data?.targets ?? {}) as Record<string, number>;
+  const bodyWeight = data?.body_weight_lb as number | null | undefined;
+
   const cleaned: Partial<Targets> = {};
-  for (const [k, v] of Object.entries(overrides)) {
+
+  // 1. Absolute floor overrides win first ("my protein target is 170g").
+  for (const k of FLOOR_KEYS) {
+    const v = raw[k];
     if (typeof v === 'number' && Number.isFinite(v) && v > 0) {
-      cleaned[k as keyof Targets] = v;
+      cleaned[k] = v;
     }
   }
+  if (
+    typeof raw.sugar_g_ceiling === 'number' &&
+    Number.isFinite(raw.sugar_g_ceiling) &&
+    raw.sugar_g_ceiling > 0
+  ) {
+    cleaned.sugar_g_ceiling = raw.sugar_g_ceiling;
+  }
+
+  // 2. Per-bodyweight ratios fill in any floor that wasn't set absolutely,
+  //    multiplying against the current body weight. So if you change your
+  //    weight, the target follows without re-saying the rule.
+  if (typeof bodyWeight === 'number' && Number.isFinite(bodyWeight) && bodyWeight > 0) {
+    for (const perLbKey of PER_LB_KEYS) {
+      const ratio = raw[perLbKey];
+      if (typeof ratio !== 'number' || !Number.isFinite(ratio) || ratio <= 0) continue;
+      const floorKey = floorKeyFromPerLb(perLbKey);
+      if (cleaned[floorKey] != null) continue; // absolute override wins
+      cleaned[floorKey] = round(bodyWeight * ratio, 0);
+    }
+  }
+
   return { ...DEFAULT_TARGETS, ...cleaned };
+}
+
+function round(n: number, places: number): number {
+  const p = 10 ** places;
+  return Math.round(n * p) / p;
 }
 
 export { DEFAULT_TARGETS };

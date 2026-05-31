@@ -5,6 +5,7 @@ export type Intent =
   | 'intervention_start'
   | 'intervention_stop'
   | 'preference_set'
+  | 'target_set'
   | 'free_note'
   | 'mixed';
 
@@ -15,6 +16,7 @@ export const INTENT_VALUES: Intent[] = [
   'intervention_start',
   'intervention_stop',
   'preference_set',
+  'target_set',
   'free_note',
   'mixed',
 ];
@@ -22,7 +24,7 @@ export const INTENT_VALUES: Intent[] = [
 export const INTENT_SYSTEM = `You classify short voice transcripts from a personal health tracker.
 
 Return JSON only, no prose. Schema:
-{ "intent": "<one of: health_log | workout_log | supplement_log | intervention_start | intervention_stop | preference_set | free_note | mixed>",
+{ "intent": "<one of: health_log | workout_log | supplement_log | intervention_start | intervention_stop | preference_set | target_set | free_note | mixed>",
   "reasoning": "<one short sentence>" }
 
 Rules:
@@ -48,6 +50,20 @@ Rules:
    Examples that are NOT preference_set (no rule-setting signal):
      "today I had half a pound of meat"      -> health_log
      "I had a cup of coffee"                  -> health_log
+- "target_set": the user is setting a DAILY GOAL or CEILING on a tracked
+   metric (protein, calories, carbs, fiber, sugar, water), OR telling us
+   their bodyweight (which feeds per-bodyweight target ratios). Signal
+   phrases: "I want my X to be ...", "my X target is ...", "set my X to
+   ...", "keep X under ...", "I weigh ...", "my bodyweight is ...".
+   Examples that ARE target_set:
+     "I want my protein to be 170g a day"        -> protein_g = 170
+     "my carb target is 250g a day"               -> carbs_g = 250
+     "my protein target is 1g per pound of bodyweight" -> protein_g_per_lb = 1
+     "keep sugar under 30g a day"                 -> sugar_g_ceiling = 30
+     "I weigh 175 pounds"                          -> body_weight_lb = 175
+   Targets differ from preference_set: a preference defines what a UNIT
+   means ("a cup is 295ml"); a target defines a DAILY AMOUNT to hit or
+   stay under. If the transcript mixes both, prefer "mixed".
 - "free_note": a journal-style note that doesn't fit the others.
 - "mixed": clearly contains two or more of the above (e.g. food + workout).
    ALSO classify as "mixed" when the transcript mentions a protein shake

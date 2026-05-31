@@ -8,6 +8,7 @@ import type {
   MuscleGroup,
   ExerciseType,
 } from './types';
+import type { TargetParsed } from './prompts/parse-target';
 
 type Admin = ReturnType<typeof createSupabaseAdmin>;
 
@@ -444,6 +445,117 @@ async function upsertSupplement(
   });
   if (insErr) return `supplements insert failed: ${insErr.message}`;
   return null;
+}
+
+// Daily targets / ceilings + bodyweight, set by voice.
+//
+// Each item is one of:
+//   { kind: 'floor',       metric: 'protein_g',   value: 170 }  // hard floor
+//   { kind: 'ceiling',     metric: 'sugar_g',     value: 30  }  // ceiling
+//   { kind: 'per_lb',      metric: 'protein_g',   value: 1   }  // resolved per-bodyweight at read time
+//   { kind: 'body_weight', metric: 'body_weight_lb', value: 175 }
+//
+// Floors are stored under their bare metric key (e.g. targets.protein_g).
+// Ceilings flip to *_ceiling (e.g. targets.sugar_g_ceiling) to match
+// lib/targets.ts. Per-lb ratios are stored under *_per_lb. Body weight
+// updates a top-level users column. Value 0 on a floor / ceiling / per_lb
+// signals removal — we delete that key from the JSON blob.
+const TARGETABLE = new Set([
+  'protein_g',
+  'calories_kcal',
+  'carbs_g',
+  'fiber_g',
+  'sugar_g',
+  'water_ml',
+]);
+
+export async function writeTargets(args: {
+  userId: string;
+  parsed: TargetParsed;
+}): Promise<{ ok: boolean; warnings: string[]; applied: number; keys: string[] }> {
+  const sb = createSupabaseAdmin();
+  const warnings: string[] = [];
+  const keys: string[] = [];
+
+  // Read current row so we can merge into the existing targets JSONB
+  // (Postgres jsonb_set with paths is more work than a read-modify-write
+  // for the cardinality we have here).
+  const { data: row, error: readErr } = await sb
+    .from('users')
+    .select('targets, body_weight_lb')
+    .eq('id', args.userId)
+    .maybeSingle();
+  if (readErr) {
+    return { ok: false, warnings: [`users read: ${readErr.message}`], applied: 0, keys: [] };
+  }
+  const nextTargets: Record<string, number> = { ...((row?.targets ?? {}) as Record<string, number>) };
+  let nextBodyWeight: number | null = (row?.body_weight_lb as number | null) ?? null;
+  let applied = 0;
+
+  for (const item of args.parsed.items ?? []) {
+    const v = Number(item.value);
+    if (!Number.isFinite(v)) {
+      warnings.push(`skipped ${item.kind}/${item.metric}: non-numeric value`);
+      continue;
+    }
+
+    if (item.kind === 'body_weight') {
+      if (v <= 0) {
+        warnings.push('skipped body_weight: must be > 0');
+        continue;
+      }
+      nextBodyWeight = round(v, 1);
+      keys.push('body_weight_lb');
+      applied += 1;
+      continue;
+    }
+
+    if (!TARGETABLE.has(item.metric)) {
+      warnings.push(`skipped: metric "${item.metric}" not targetable`);
+      continue;
+    }
+
+    let key: string;
+    if (item.kind === 'floor') key = item.metric;
+    else if (item.kind === 'ceiling') key = `${item.metric}_ceiling`;
+    else if (item.kind === 'per_lb') key = `${item.metric}_per_lb`;
+    else {
+      warnings.push(`skipped: unknown kind "${item.kind}"`);
+      continue;
+    }
+
+    if (v === 0) {
+      // Removal sentinel — strip the key.
+      delete nextTargets[key];
+    } else {
+      nextTargets[key] = v;
+    }
+    keys.push(key);
+    applied += 1;
+  }
+
+  if (applied === 0) {
+    return { ok: true, warnings, applied, keys };
+  }
+
+  const update: Record<string, unknown> = { targets: nextTargets };
+  if (nextBodyWeight != null) update.body_weight_lb = nextBodyWeight;
+
+  const { error: writeErr } = await sb.from('users').update(update).eq('id', args.userId);
+  if (writeErr) {
+    return {
+      ok: false,
+      warnings: [...warnings, `users update: ${writeErr.message}`],
+      applied,
+      keys,
+    };
+  }
+  return { ok: warnings.length === 0, warnings, applied, keys };
+}
+
+function round(n: number, places: number): number {
+  const p = 10 ** places;
+  return Math.round(n * p) / p;
 }
 
 export async function writePreferences(args: {
