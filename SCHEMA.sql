@@ -543,6 +543,60 @@ exception when duplicate_object then null;
 end $$;
 
 -- =====================================================================
+-- Weekly insights — structured output of the Friday cron
+-- =====================================================================
+-- One row per surviving insight after the deterministic candidate pass +
+-- Sonnet narration. metrics is the deterministic math (means, n, effect
+-- size, threshold); evidence is the raw points so the dashboard can
+-- render a dot plot / before-after strip behind the headline.
+create table if not exists weekly_insights (
+  id              uuid primary key default uuid_generate_v4(),
+  user_id         uuid not null references users(id) on delete cascade,
+  computed_at     timestamptz not null default now(),
+  window_start    date not null,
+  window_end      date not null,
+  kind            text not null check (kind in (
+    'correlation', 'group_compare', 'intervention_window', 'adherence_outcome'
+  )),
+  domains         text[] not null default '{}',
+  headline        text not null,
+  why_it_matters  text,
+  caveats         text[] not null default '{}',
+  surprise_score  numeric,
+  metrics         jsonb not null,
+  evidence        jsonb,
+  status          text not null default 'active' check (status in (
+    'active', 'dismissed', 'snoozed', 'superseded'
+  )),
+  created_at      timestamptz not null default now()
+);
+
+create index if not exists weekly_insights_user_computed_idx
+  on weekly_insights(user_id, computed_at desc);
+create index if not exists weekly_insights_user_status_idx
+  on weekly_insights(user_id, status)
+  where status = 'active';
+
+-- =====================================================================
+-- Insight feedback — up / down / "wrong" per insight
+-- =====================================================================
+-- Folded into next week's prompt as upvoted / downvoted patterns, so
+-- Sonnet biases toward what the user actually cares about. "wrong" is
+-- the highest-priority signal because it means the math was off.
+create table if not exists insight_feedback (
+  id              uuid primary key default uuid_generate_v4(),
+  insight_id      uuid not null references weekly_insights(id) on delete cascade,
+  user_id         uuid not null references users(id) on delete cascade,
+  verdict         text not null check (verdict in ('up', 'down', 'wrong')),
+  note            text,
+  created_at      timestamptz not null default now(),
+  unique (insight_id, user_id)
+);
+
+create index if not exists insight_feedback_user_idx
+  on insight_feedback(user_id, created_at desc);
+
+-- =====================================================================
 -- RLS — simple gate. Single user, but enable for safety in case multi-user later.
 -- =====================================================================
 alter table users                    enable row level security;
@@ -567,6 +621,8 @@ alter table api_usage                enable row level security;
 alter table open_questions           enable row level security;
 alter table personas                 enable row level security;
 alter table user_preferences         enable row level security;
+alter table weekly_insights          enable row level security;
+alter table insight_feedback         enable row level security;
 
 -- Permissive policy for the single-user case. Replace with auth.uid() checks when going multi-user.
 -- For now: rely on service-role key from Next.js API routes, no anonymous access.

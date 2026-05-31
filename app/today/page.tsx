@@ -6,6 +6,7 @@ import {
   fetchTodaySupplements,
   fetchTodayNutritionBreakdown,
 } from '@/lib/today';
+import { fetchActiveInsights } from '@/lib/insights/load';
 import { TodayView } from '@/components/TodayView';
 import { demoTodayData } from '@/lib/demo';
 
@@ -24,12 +25,13 @@ export default async function TodayPage({
   }
 
   const user = await requireUser();
-  const [today, entries, workouts, supplements, breakdown] = await Promise.all([
+  const [today, entries, workouts, supplements, breakdown, insights] = await Promise.all([
     fetchTodayForUser(user.id),
     fetchTodayEntries(user.id),
     fetchTodayWorkouts(user.id),
     fetchTodaySupplements(user.id),
     fetchTodayNutritionBreakdown(user.id),
+    fetchActiveInsights(user.id),
   ]);
 
   return (
@@ -39,6 +41,7 @@ export default async function TodayPage({
       workouts={workouts}
       supplements={supplements}
       breakdown={breakdown}
+      insights={insights}
     />
   );
 }
