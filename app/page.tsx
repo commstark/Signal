@@ -136,6 +136,12 @@ function HomeInner() {
         <Link href="/stack" className="text-small text-ink-2 hover:text-ink font-mono">
           Account
         </Link>
+        <Link
+          href="/signals"
+          className="hidden md:inline-block text-small text-ink-2 hover:text-ink font-mono"
+        >
+          Signals
+        </Link>
         <Link href="/ask" className="text-small text-ink-2 hover:text-ink font-mono">
           Ask
         </Link>

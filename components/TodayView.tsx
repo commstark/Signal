@@ -55,6 +55,12 @@ export function TodayView({
           </div>
         </div>
         <div className="flex items-baseline gap-4">
+          <Link
+            href="/signals"
+            className="hidden md:inline-block text-small text-ink-2 hover:text-ink font-mono"
+          >
+            Signals
+          </Link>
           <Link href="/ask" className="text-small text-ink-2 hover:text-ink font-mono">
             Ask
           </Link>
