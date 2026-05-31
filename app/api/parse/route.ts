@@ -8,6 +8,7 @@ import {
   parseSupplementLog,
   parseIntervention,
   parsePreference,
+  parseTarget,
   type ParseUsage,
 } from '@/lib/parse';
 import { recordUsage } from '@/lib/usage';
@@ -17,6 +18,7 @@ import {
   writeSupplementLog,
   writeIntervention,
   writePreferences,
+  writeTargets,
   type WriteResult,
 } from '@/lib/writers';
 import { loadUserCalibrations } from '@/lib/preferences';
@@ -28,6 +30,7 @@ import type {
   InterventionParsed,
   PreferenceParsed,
 } from '@/lib/types';
+import type { TargetParsed } from '@/lib/prompts/parse-target';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -267,6 +270,36 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       console.error('preference parse error', err);
       warnings.push(`preference parse failed: ${errorMessage(err)}`);
+    }
+  }
+
+  if (intent === 'target_set' || intent === 'mixed') {
+    try {
+      const { value, usage } = await parseTarget(transcript);
+      usageTotals.push(usage);
+      extractedFacts.target = value;
+      await recordUsage({
+        userId: user.id,
+        service: 'anthropic',
+        model: usage.model,
+        endpoint: 'parse-target',
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        costUsd: usage.costUsd,
+        entryId,
+      });
+      const parsed = value as TargetParsed;
+      if ((parsed.items ?? []).length > 0) {
+        const result = await writeTargets({ userId: user.id, parsed });
+        sectionResults.push({
+          section: 'target',
+          result: { ok: result.ok, warnings: result.warnings },
+        });
+        warnings.push(...result.warnings);
+      }
+    } catch (err) {
+      console.error('target parse error', err);
+      warnings.push(`target parse failed: ${errorMessage(err)}`);
     }
   }
 
