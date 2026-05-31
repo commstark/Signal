@@ -31,6 +31,8 @@ export interface AdherenceCell {
   skipped: number;
   // 0 if neither taken nor skipped logged (assumed not-recorded day).
   total: number;
+  taken_items: string[];
+  skipped_items: string[];
 }
 
 export interface InterventionMarker {
@@ -69,7 +71,7 @@ export async function loadSignalsBundle(userId: string, days: 7 | 30 | 60 | 90 =
       .gte('occurred_at', startIso),
     sb
       .from('supplement_logs')
-      .select('occurred_at, taken')
+      .select('occurred_at, taken, supplement_name')
       .eq('user_id', userId)
       .gte('occurred_at', startIso),
     sb
@@ -143,17 +145,35 @@ export async function loadSignalsBundle(userId: string, days: 7 | 30 | 60 | 90 =
   const workouts = Array.from(weekMap.values()).sort((a, b) => a.week_start.localeCompare(b.week_start));
 
   const adhMap = new Map<string, AdherenceCell>();
-  for (const s of (supRes.data ?? []) as Array<{ occurred_at: string; taken: boolean | null }>) {
+  for (const s of (supRes.data ?? []) as Array<{
+    occurred_at: string;
+    taken: boolean | null;
+    supplement_name: string | null;
+  }>) {
     const d = pstDay(s.occurred_at);
-    const cell = adhMap.get(d) ?? { date: d, taken: 0, skipped: 0, total: 0 };
-    if (s.taken) cell.taken += 1;
-    else cell.skipped += 1;
+    const cell = adhMap.get(d) ?? {
+      date: d,
+      taken: 0,
+      skipped: 0,
+      total: 0,
+      taken_items: [],
+      skipped_items: [],
+    };
+    const name = (s.supplement_name ?? '').trim();
+    if (s.taken) {
+      cell.taken += 1;
+      if (name) cell.taken_items.push(name);
+    } else {
+      cell.skipped += 1;
+      if (name) cell.skipped_items.push(name);
+    }
     cell.total = cell.taken + cell.skipped;
     adhMap.set(d, cell);
   }
   for (let i = days; i >= 0; i--) {
     const d = isoDay(addDays(now, -i));
-    if (!adhMap.has(d)) adhMap.set(d, { date: d, taken: 0, skipped: 0, total: 0 });
+    if (!adhMap.has(d))
+      adhMap.set(d, { date: d, taken: 0, skipped: 0, total: 0, taken_items: [], skipped_items: [] });
   }
   const adherence = Array.from(adhMap.values()).sort((a, b) => a.date.localeCompare(b.date));
 
