@@ -15,6 +15,7 @@ import { StatusDot, type StatusTone } from '@/components/StatusDot';
 import { PendingRefresher } from '@/components/PendingRefresher';
 import { InsightsSection } from '@/components/InsightsSection';
 import type { ActiveInsight } from '@/lib/insights/load';
+import { DEFAULT_TARGETS, type Targets } from '@/lib/targets';
 
 export interface TodayViewData {
   today: TodaySummary;
@@ -34,9 +35,11 @@ export function TodayView({
   supplements,
   breakdown,
   insights,
+  targets,
   demo = false,
-}: TodayViewData & { insights?: ActiveInsight[]; demo?: boolean }) {
+}: TodayViewData & { insights?: ActiveInsight[]; targets?: Targets; demo?: boolean }) {
   const hasPending = !demo && entries.some((e) => e.parse_status === 'pending');
+  const t = targets ?? DEFAULT_TARGETS;
 
   return (
     <main className="min-h-dvh pb-8">
@@ -69,6 +72,9 @@ export function TodayView({
             field="protein_g"
             unit="g"
             rows={breakdown}
+            progress={today.protein_g / t.protein_g}
+            tone="goal"
+            target={{ value: t.protein_g, unit: 'g' }}
           />
         </div>
         <NutritionTile
@@ -78,6 +84,9 @@ export function TodayView({
           field="calories_kcal"
           unit=" kcal"
           rows={breakdown}
+          progress={today.calories_kcal / t.calories_kcal}
+          tone="goal"
+          target={{ value: t.calories_kcal, unit: ' kcal' }}
         />
         <NutritionTile
           value={`${today.carbs_g}g`}
@@ -86,6 +95,9 @@ export function TodayView({
           field="carbs_g"
           unit="g"
           rows={breakdown}
+          progress={today.carbs_g / t.carbs_g}
+          tone="goal"
+          target={{ value: t.carbs_g, unit: 'g' }}
         />
         <NutritionTile
           value={`${today.fiber_g}g`}
@@ -93,6 +105,9 @@ export function TodayView({
           field="fiber_g"
           unit="g"
           rows={breakdown}
+          progress={today.fiber_g / t.fiber_g}
+          tone="goal"
+          target={{ value: t.fiber_g, unit: 'g' }}
         />
         <NutritionTile
           value={`${today.sugar_g}g`}
@@ -101,6 +116,9 @@ export function TodayView({
           field="sugar_g"
           unit="g"
           rows={breakdown}
+          progress={today.sugar_g / t.sugar_g_ceiling}
+          tone="ceiling"
+          target={{ value: t.sugar_g_ceiling, unit: 'g' }}
         />
         <div data-tour="tile-water">
           <NutritionTile
@@ -109,6 +127,9 @@ export function TodayView({
             field="water_ml"
             unit="ml"
             rows={breakdown}
+            progress={today.water_ml / t.water_ml}
+            tone="goal"
+            target={{ value: t.water_ml / 1000, unit: 'L' }}
           />
         </div>
       </section>

@@ -19,6 +19,7 @@ create table if not exists users (
   email       text unique,
   timezone    text not null default 'America/Los_Angeles',
   profile_md  text,                                         -- free-text health background (markdown), fed into Sonnet as cached context
+  targets     jsonb not null default '{}'::jsonb,           -- daily floor / ceiling overrides; defaults in lib/targets.ts
   created_at  timestamptz not null default now()
 );
 

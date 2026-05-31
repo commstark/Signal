@@ -25,10 +25,14 @@ export interface PushSubscriptionRow {
   auth_key: string;
 }
 
-// Fire a push to every device the user has registered. Cleans up
-// 404/410 endpoints (browser uninstalled / permission revoked).
-export async function sendInsightPush(userId: string, insightCount: number): Promise<void> {
-  if (insightCount === 0) return;
+interface Payload {
+  title: string;
+  body: string;
+  url: string;
+}
+
+// Lower-level fan-out shared by all push types. Cleans up 404/410.
+async function deliver(userId: string, payload: Payload): Promise<void> {
   configure();
   const sb = createSupabaseAdmin();
   const { data } = await sb
@@ -37,22 +41,13 @@ export async function sendInsightPush(userId: string, insightCount: number): Pro
     .eq('user_id', userId);
   const subs = (data ?? []) as PushSubscriptionRow[];
   if (subs.length === 0) return;
-
-  const payload = JSON.stringify({
-    title: insightCount === 1 ? 'New insight ready' : `${insightCount} new insights ready`,
-    body: 'Tap to see what your last week looked like.',
-    url: '/today',
-  });
-
+  const serialized = JSON.stringify(payload);
   await Promise.all(
     subs.map(async (sub) => {
       try {
         await webpush.sendNotification(
-          {
-            endpoint: sub.endpoint,
-            keys: { p256dh: sub.p256dh_key, auth: sub.auth_key },
-          },
-          payload,
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh_key, auth: sub.auth_key } },
+          serialized,
         );
         await sb
           .from('push_subscriptions')
@@ -60,7 +55,6 @@ export async function sendInsightPush(userId: string, insightCount: number): Pro
           .eq('id', sub.id);
       } catch (e: unknown) {
         const status = (e as { statusCode?: number })?.statusCode;
-        // Browser unsubscribed or endpoint expired — drop the row.
         if (status === 404 || status === 410) {
           await sb.from('push_subscriptions').delete().eq('id', sub.id);
         } else {
@@ -69,4 +63,33 @@ export async function sendInsightPush(userId: string, insightCount: number): Pro
       }
     }),
   );
+}
+
+// Morning check-in: 8am local. Opens the record screen so the user can
+// just tap and talk if they want to log how they slept / how they feel.
+export async function sendMorningPrompt(userId: string): Promise<void> {
+  await deliver(userId, {
+    title: 'Good morning',
+    body: 'How did you sleep? Anything off this morning?',
+    url: '/',
+  });
+}
+
+// Evening check-in: 9pm local. Mood + sleep-aware nudge.
+export async function sendEveningPrompt(userId: string): Promise<void> {
+  await deliver(userId, {
+    title: 'Quick check-in',
+    body: 'How was your mood today? Notice anything about sleep last night?',
+    url: '/',
+  });
+}
+
+// Fan-out for the Friday weekly insights cron.
+export async function sendInsightPush(userId: string, insightCount: number): Promise<void> {
+  if (insightCount === 0) return;
+  await deliver(userId, {
+    title: insightCount === 1 ? 'New insight ready' : `${insightCount} new insights ready`,
+    body: 'Tap to see what your last week looked like.',
+    url: '/today',
+  });
 }
