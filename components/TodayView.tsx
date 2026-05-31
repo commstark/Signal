@@ -14,6 +14,7 @@ import { TranscriptEditor } from '@/components/TranscriptEditor';
 import { StatusDot, type StatusTone } from '@/components/StatusDot';
 import { PendingRefresher } from '@/components/PendingRefresher';
 import { InsightsSection } from '@/components/InsightsSection';
+import { DateStepper } from '@/components/DateStepper';
 import type { ActiveInsight } from '@/lib/insights/load';
 import { DEFAULT_TARGETS, type Targets } from '@/lib/targets';
 
@@ -36,22 +37,37 @@ export function TodayView({
   breakdown,
   insights,
   targets,
+  ymd,
+  todayYmd,
   demo = false,
-}: TodayViewData & { insights?: ActiveInsight[]; targets?: Targets; demo?: boolean }) {
+}: TodayViewData & {
+  insights?: ActiveInsight[];
+  targets?: Targets;
+  ymd?: string;       // PST day this view represents (defaults to today)
+  todayYmd?: string;  // today in PST — for stepper bounds
+  demo?: boolean;
+}) {
   const hasPending = !demo && entries.some((e) => e.parse_status === 'pending');
   const t = targets ?? DEFAULT_TARGETS;
+  const isPast = !!(ymd && todayYmd && ymd < todayYmd);
 
   return (
     <main className="min-h-dvh pb-8">
-      {!demo && <PendingRefresher active={hasPending} />}
+      {!demo && !isPast && <PendingRefresher active={hasPending} />}
       <header className="px-4 py-4 flex items-baseline justify-between">
         <div className="flex items-center gap-3">
           <Link href="/" className="text-ink-2 hover:text-ink" aria-label="Back" data-tour="back-link">
             <ArrowLeft size={18} />
           </Link>
           <div>
-            <h1 className="text-h2">Today</h1>
-            <p className="text-small text-ink-2 font-mono">{formatTodayLabel()} · PST</p>
+            {ymd && todayYmd ? (
+              <DateStepper ymd={ymd} todayYmd={todayYmd} />
+            ) : (
+              <h1 className="text-h2">Today</h1>
+            )}
+            <p className="text-small text-ink-2 font-mono">
+              {ymd ? prettyDateMono(ymd) : formatTodayLabel()} · PST
+            </p>
           </div>
         </div>
         <div className="flex items-baseline gap-4">
@@ -149,7 +165,8 @@ export function TodayView({
         <Stat value={today.mood_avg != null ? today.mood_avg.toFixed(1) : '—'} label="mood avg" />
       </section>
 
-      {!demo && <InsightsSection insights={insights ?? []} />}
+      {/* Insights are weekly aggregates, not per-day — only show on today. */}
+      {!demo && !isPast && <InsightsSection insights={insights ?? []} />}
 
       <section className="px-4 mt-8" data-tour="workouts">
         <h2 className="text-h3 mb-3">Workouts</h2>
@@ -329,6 +346,18 @@ function formatTodayLabel() {
     month: 'short',
     day: 'numeric',
   }).format(new Date());
+}
+
+function prettyDateMono(ymd: string): string {
+  const [, m, d] = ymd.split('-');
+  const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][
+    Number(m) - 1
+  ];
+  const dow = new Date(`${ymd}T12:00:00Z`).toLocaleDateString('en-US', {
+    weekday: 'short',
+    timeZone: 'UTC',
+  });
+  return `${dow}, ${month} ${Number(d)}`;
 }
 
 function formatTime(iso: string) {
