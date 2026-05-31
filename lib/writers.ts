@@ -467,6 +467,7 @@ const TARGETABLE = new Set([
   'fiber_g',
   'sugar_g',
   'water_ml',
+  'workouts_per_week',
 ]);
 
 export async function writeTargets(args: {

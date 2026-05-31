@@ -4,8 +4,9 @@ import { requireUser } from '@/lib/auth';
 import { loadSignalsBundle } from '@/lib/signals/aggregate';
 import { fetchActiveInsights } from '@/lib/insights/load';
 import { loadRecentChats } from '@/lib/signals/load-chats';
+import { loadUserTargets } from '@/lib/targets';
 import { MacrosChart } from '@/components/signals/MacrosChart';
-import { WorkoutVolumeChart } from '@/components/signals/WorkoutVolumeChart';
+import { WorkoutGoalChart } from '@/components/signals/WorkoutGoalChart';
 import { AdherenceHeatmap } from '@/components/signals/AdherenceHeatmap';
 import { DateRangeChip } from '@/components/signals/DateRangeChip';
 import { AskPanel } from '@/components/signals/AskPanel';
@@ -24,10 +25,11 @@ export default async function SignalsPage({
   const { range } = await searchParams;
   const days = (ALLOWED.find((v) => String(v) === range) ?? 30) as 7 | 30 | 60 | 90;
 
-  const [bundle, insights, chats] = await Promise.all([
+  const [bundle, insights, chats, targets] = await Promise.all([
     loadSignalsBundle(user.id, days),
     fetchActiveInsights(user.id),
     loadRecentChats(user.id, 8),
+    loadUserTargets(user.id),
   ]);
 
   return (
@@ -77,7 +79,10 @@ export default async function SignalsPage({
           {/* Trends — right (7/12) */}
           <div className="col-span-7 space-y-6">
             <MacrosChart data={bundle.macros} interventions={bundle.interventions} />
-            <WorkoutVolumeChart data={bundle.workouts} />
+            <WorkoutGoalChart
+              data={bundle.workout_days}
+              weeklyTarget={targets.workouts_per_week}
+            />
             <AdherenceHeatmap data={bundle.adherence} />
           </div>
         </div>

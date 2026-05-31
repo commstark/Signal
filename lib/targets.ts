@@ -3,6 +3,8 @@ import { createSupabaseAdmin } from './supabase/admin';
 // Daily targets used to fill the /today tiles. Floor metrics ("eat at
 // least this much") fill with lilac as you approach 100%. Ceilings
 // ("stay below this") fill with peach as you approach the ceiling.
+// workouts_per_week is the only weekly-cadence target — drives the
+// /signals workout goal chart.
 export interface Targets {
   protein_g: number;
   calories_kcal: number;
@@ -10,6 +12,7 @@ export interface Targets {
   fiber_g: number;
   water_ml: number;
   sugar_g_ceiling: number;
+  workouts_per_week: number;
 }
 
 const DEFAULT_TARGETS: Targets = {
@@ -19,6 +22,7 @@ const DEFAULT_TARGETS: Targets = {
   fiber_g: 25,
   water_ml: 3000,
   sugar_g_ceiling: 50,
+  workouts_per_week: 4,
 };
 
 // Keys we accept as overrides in users.targets. Voice-set targets follow
@@ -29,6 +33,7 @@ const FLOOR_KEYS: Array<keyof Targets> = [
   'carbs_g',
   'fiber_g',
   'water_ml',
+  'workouts_per_week',
 ];
 
 const PER_LB_KEYS = [
