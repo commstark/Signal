@@ -7,7 +7,7 @@ Return JSON only. Schema:
   "items": [
     {
       "kind": "floor" | "ceiling" | "per_lb" | "body_weight",
-      "metric": "protein_g" | "calories_kcal" | "carbs_g" | "fiber_g" | "sugar_g" | "water_ml" | "body_weight_lb",
+      "metric": "protein_g" | "calories_kcal" | "carbs_g" | "fiber_g" | "sugar_g" | "water_ml" | "workouts_per_week" | "body_weight_lb",
       "value": number,
       "notes": string  // short echo of the user's wording, max ~80 chars
     }
@@ -21,6 +21,8 @@ Mapping rules:
 - "I need 30g of fiber a day"                 -> { kind: "floor",     metric: "fiber_g",         value: 30 }
 - "I want 4 liters of water a day"            -> { kind: "floor",     metric: "water_ml",        value: 4000 }
 - "keep sugar under 30g a day"                -> { kind: "ceiling",   metric: "sugar_g",         value: 30 }
+- "I want to work out 4 times a week"         -> { kind: "floor",     metric: "workouts_per_week", value: 4 }
+- "my workout target is 5 a week"             -> { kind: "floor",     metric: "workouts_per_week", value: 5 }
 - "calories under 2200"                       -> { kind: "ceiling",   metric: "calories_kcal",   value: 2200 }
 - "1g of protein per pound of bodyweight"     -> { kind: "per_lb",    metric: "protein_g",       value: 1 }
 - "0.8g protein per lb"                       -> { kind: "per_lb",    metric: "protein_g",       value: 0.8 }
@@ -45,7 +47,15 @@ export function targetParseUserPrompt(transcript: string): string {
 export interface TargetParsed {
   items: Array<{
     kind: 'floor' | 'ceiling' | 'per_lb' | 'body_weight';
-    metric: 'protein_g' | 'calories_kcal' | 'carbs_g' | 'fiber_g' | 'sugar_g' | 'water_ml' | 'body_weight_lb';
+    metric:
+      | 'protein_g'
+      | 'calories_kcal'
+      | 'carbs_g'
+      | 'fiber_g'
+      | 'sugar_g'
+      | 'water_ml'
+      | 'workouts_per_week'
+      | 'body_weight_lb';
     value: number;
     notes: string;
   }>;

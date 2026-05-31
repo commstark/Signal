@@ -45,12 +45,25 @@ export interface InterventionMarker {
   name: string;
 }
 
+export interface WorkoutDay {
+  date: string; // YYYY-MM-DD in PST
+  exercises: Array<{
+    name: string;
+    muscle_group: string | null;
+    exercise_type: string | null;
+    top_weight_lb: number | null;
+    top_reps: number | null;
+    total_duration_s: number | null;
+  }>;
+}
+
 export interface SignalsBundle {
   range: SignalsRange;
   start: string;
   end: string;
   macros: MacroDay[];
   workouts: WeeklyWorkoutVolume[];
+  workout_days: WorkoutDay[];
   adherence: AdherenceCell[];
   interventions: InterventionMarker[];
 }
@@ -71,7 +84,7 @@ export async function loadSignalsBundle(userId: string, days: 7 | 30 | 60 | 90 =
       .gte('occurred_at', startIso),
     sb
       .from('workout_exercises')
-      .select('occurred_at, muscle_group')
+      .select('id, occurred_at, exercise_name, muscle_group, exercise_type')
       .eq('user_id', userId)
       .gte('occurred_at', startIso),
     sb
@@ -131,14 +144,48 @@ export async function loadSignalsBundle(userId: string, days: 7 | 30 | 60 | 90 =
   }
   const macros = Array.from(macroMap.values()).sort((a, b) => a.date.localeCompare(b.date));
 
-  // Group workouts by ISO week + muscle group.
+  const exerciseRows = (exRes.data ?? []) as Array<{
+    id: string;
+    occurred_at: string;
+    exercise_name: string;
+    muscle_group: string | null;
+    exercise_type: string | null;
+  }>;
+
+  // Pull workout_sets for the exercises we picked up so the day detail
+  // panel can show "Bench · top set 225×6 · 12 min" rather than just a name.
+  const exIds = exerciseRows.map((e) => e.id);
+  const { data: setsData } = exIds.length
+    ? await sb
+        .from('workout_sets')
+        .select('exercise_id, weight_lb, reps, duration_s')
+        .in('exercise_id', exIds)
+    : { data: [] as Array<{ exercise_id: string; weight_lb: number | null; reps: number | null; duration_s: number | null }> };
+  const setsByEx = new Map<
+    string,
+    Array<{ weight_lb: number | null; reps: number | null; duration_s: number | null }>
+  >();
+  for (const s of setsData ?? []) {
+    const arr = setsByEx.get(s.exercise_id as string) ?? [];
+    arr.push({
+      weight_lb: s.weight_lb as number | null,
+      reps: s.reps as number | null,
+      duration_s: s.duration_s as number | null,
+    });
+    setsByEx.set(s.exercise_id as string, arr);
+  }
+
+  // Group workouts by ISO week + muscle group (kept for the legacy bar
+  // chart's data shape + the make_chart / query_metric `workouts` tool).
   const weekMap = new Map<string, WeeklyWorkoutVolume>();
-  for (const e of (exRes.data ?? []) as Array<{ occurred_at: string; muscle_group: string | null }>) {
+  // Group workouts by PST day for the new "did I work out?" view.
+  const dayMap = new Map<string, WorkoutDay>();
+  for (const e of exerciseRows) {
     const d = pstDay(e.occurred_at);
     const wk = isoMondayStr(d);
-    let row = weekMap.get(wk);
-    if (!row) {
-      row = {
+    let wRow = weekMap.get(wk);
+    if (!wRow) {
+      wRow = {
         week_start: wk,
         chest: 0,
         back: 0,
@@ -149,16 +196,38 @@ export async function loadSignalsBundle(userId: string, days: 7 | 30 | 60 | 90 =
         full_body: 0,
         other: 0,
       };
-      weekMap.set(wk, row);
+      weekMap.set(wk, wRow);
     }
     const mg = (e.muscle_group ?? 'other') as keyof Omit<WeeklyWorkoutVolume, 'week_start'>;
-    if (mg in row) {
-      row[mg] += 1;
-    } else {
-      row.other += 1;
+    if (mg in wRow) wRow[mg] += 1;
+    else wRow.other += 1;
+
+    let dRow = dayMap.get(d);
+    if (!dRow) {
+      dRow = { date: d, exercises: [] };
+      dayMap.set(d, dRow);
     }
+    const sets = setsByEx.get(e.id) ?? [];
+    let top: { weight_lb: number | null; reps: number | null } | null = null;
+    let totalDur = 0;
+    for (const s of sets) {
+      if (s.weight_lb != null) {
+        const w = Number(s.weight_lb);
+        if (!top || w > (top.weight_lb ?? 0)) top = { weight_lb: w, reps: s.reps };
+      }
+      if (s.duration_s != null) totalDur += Number(s.duration_s);
+    }
+    dRow.exercises.push({
+      name: e.exercise_name,
+      muscle_group: e.muscle_group,
+      exercise_type: e.exercise_type,
+      top_weight_lb: top?.weight_lb ?? null,
+      top_reps: top?.reps ?? null,
+      total_duration_s: totalDur > 0 ? totalDur : null,
+    });
   }
   const workouts = Array.from(weekMap.values()).sort((a, b) => a.week_start.localeCompare(b.week_start));
+  const workout_days = Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date));
 
   // Per-day take / skip name sets, lowercased for matching against stack.
   const dayTaken = new Map<string, Set<string>>();
@@ -221,7 +290,16 @@ export async function loadSignalsBundle(userId: string, days: 7 | 30 | 60 | 90 =
     .map((i) => ({ date: i.start_date.slice(0, 10), name: i.name }))
     .filter((i) => i.date >= start && i.date <= end);
 
-  return { range: { days }, start, end, macros, workouts, adherence, interventions };
+  return {
+    range: { days },
+    start,
+    end,
+    macros,
+    workouts,
+    workout_days,
+    adherence,
+    interventions,
+  };
 }
 
 function pstDay(iso: string): string {
