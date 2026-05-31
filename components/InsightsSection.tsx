@@ -12,16 +12,30 @@ export function InsightsSection({ insights }: Props) {
   const router = useRouter();
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
+  const [runInfo, setRunInfo] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Record<string, 'up' | 'down' | 'wrong'>>({});
 
   async function runNow() {
     setRunning(true);
     setRunError(null);
+    setRunInfo(null);
     try {
       const r = await fetch('/api/insights/run-now', { method: 'POST' });
+      const body = (await r.json().catch(() => null)) as
+        | { error?: string; insights_written?: number; candidates_found?: number }
+        | null;
       if (!r.ok) {
-        const b = await r.json().catch(() => null);
-        throw new Error(b?.error ?? `Run failed: ${r.status}`);
+        throw new Error(body?.error ?? `Run failed: ${r.status}`);
+      }
+      // The run endpoint returns 200 with { error } when nothing was
+      // written (e.g. not enough history) — surface that to the user
+      // instead of silently refreshing into the same empty state.
+      if (body?.error) {
+        setRunError(body.error);
+      } else if ((body?.insights_written ?? 0) === 0) {
+        setRunInfo(
+          `Ran on ${body?.candidates_found ?? 0} candidate signal(s) — none crossed the surprise threshold this run. Try again after a few more days of logs.`,
+        );
       }
       router.refresh();
     } catch (e) {
@@ -61,10 +75,11 @@ export function InsightsSection({ insights }: Props) {
       <PushEnableRow />
 
       {runError && <p className="text-small text-signal-red mb-2">{runError}</p>}
+      {runInfo && !runError && <p className="text-small text-ink-2 mb-2">{runInfo}</p>}
 
       {insights.length === 0 ? (
         <p className="text-small text-ink-2 leading-relaxed">
-          No insights yet. Run your reflection once you have ~2 weeks of logged data — Friday
+          No insights yet. Run your reflection once you have a few days of logs — Friday
           nights it’ll run on its own.
         </p>
       ) : (

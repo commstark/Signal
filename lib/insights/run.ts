@@ -27,14 +27,14 @@ export async function runWeeklyForUser(userId: string, now = new Date()): Promis
   const started = Date.now();
   try {
     const bundle = await aggregateUserData(userId, now);
-    if (bundle.daily_aggregates.length < 7) {
+    if (bundle.daily_aggregates.length < 5) {
       return {
         user_id: userId,
         candidates_found: 0,
         insights_written: 0,
         cost_usd: 0,
         duration_ms: Date.now() - started,
-        error: 'not enough history (need >= 7 days)',
+        error: `Not enough history yet — found ${bundle.daily_aggregates.length} day(s) of structured data. Need at least 5 days to surface a pattern.`,
       };
     }
 
