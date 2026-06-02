@@ -167,7 +167,7 @@ function HomeInner() {
     <main className="min-h-dvh flex flex-col">
       <header className="p-4 flex justify-end gap-4">
         <Link href="/stack" className="text-small text-ink-2 hover:text-ink font-mono">
-          Account
+          Preferences
         </Link>
         <Link href="/settings" className="text-small text-ink-2 hover:text-ink font-mono">
           Settings

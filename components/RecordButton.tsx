@@ -41,6 +41,17 @@ export function RecordButton({ autoLaunch = false, onRecorded }: Props) {
     }
   }, [state]);
 
+  // The autoLaunch prop can flip true AFTER mount when /'s home page
+  // discovers the auto-record-on-open localStorage preference in its
+  // own useEffect. Without this, our state was locked to 'idle' from
+  // the initial useState and the launching effect above never fired.
+  useEffect(() => {
+    if (autoLaunch && state === 'idle') {
+      setState('launching');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoLaunch]);
+
   useEffect(() => {
     if (state !== 'recording') return;
     startTimeRef.current = Date.now();
