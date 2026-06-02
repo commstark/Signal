@@ -169,6 +169,9 @@ function HomeInner() {
         <Link href="/stack" className="text-small text-ink-2 hover:text-ink font-mono">
           Account
         </Link>
+        <Link href="/settings" className="text-small text-ink-2 hover:text-ink font-mono">
+          Settings
+        </Link>
         <Link
           href="/signals"
           className="hidden md:inline-block text-small text-ink-2 hover:text-ink font-mono"

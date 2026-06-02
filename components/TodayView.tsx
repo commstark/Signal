@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowLeft, Check, Circle } from 'lucide-react';
+import { Check, Circle } from 'lucide-react';
 import {
   type TodaySummary,
   type TodayEntry,
@@ -55,20 +55,15 @@ export function TodayView({
     <main className="min-h-dvh pb-8">
       {!demo && !isPast && <PendingRefresher active={hasPending} />}
       <header className="px-4 py-4 flex items-baseline justify-between">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="text-ink-2 hover:text-ink" aria-label="Back" data-tour="back-link">
-            <ArrowLeft size={18} />
-          </Link>
-          <div>
-            {ymd && todayYmd ? (
-              <DateStepper ymd={ymd} todayYmd={todayYmd} />
-            ) : (
-              <h1 className="text-h2">Today</h1>
-            )}
-            <p className="text-small text-ink-2 font-mono">
-              {ymd ? prettyDateMono(ymd) : formatTodayLabel()} · PST
-            </p>
-          </div>
+        <div>
+          {ymd && todayYmd ? (
+            <DateStepper ymd={ymd} todayYmd={todayYmd} />
+          ) : (
+            <h1 className="text-h2">Today</h1>
+          )}
+          <p className="text-small text-ink-2 font-mono">
+            {ymd ? prettyDateMono(ymd) : formatTodayLabel()} · PST
+          </p>
         </div>
         <div className="flex items-baseline gap-4">
           <Link
@@ -80,7 +75,10 @@ export function TodayView({
           <Link href="/ask" className="text-small text-ink-2 hover:text-ink font-mono">
             Ask
           </Link>
-          <Link href="/settings" className="text-small text-ink-2 hover:text-ink">
+          <Link href="/" className="text-small text-ink-2 hover:text-ink font-mono">
+            Record
+          </Link>
+          <Link href="/settings" className="text-small text-ink-2 hover:text-ink font-mono">
             Settings
           </Link>
         </div>
