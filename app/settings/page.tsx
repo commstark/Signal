@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { requireUser } from '@/lib/auth';
+import { AutoRecordToggle } from '@/components/AutoRecordToggle';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,12 +15,20 @@ export default async function SettingsPage() {
         <h1 className="text-h1 mt-2">Settings</h1>
       </header>
 
-      <dl className="space-y-4">
-        <Row label="Account">{user.email}</Row>
-        <Row label="Timezone">America/Los_Angeles</Row>
-        <Row label="Units">lb</Row>
-        <Row label="Version">0.1.0</Row>
-      </dl>
+      <section className="mb-8">
+        <h2 className="text-h3 mb-3">Capture</h2>
+        <AutoRecordToggle />
+      </section>
+
+      <section>
+        <h2 className="text-h3 mb-3">Account</h2>
+        <dl className="space-y-4">
+          <Row label="Email">{user.email}</Row>
+          <Row label="Timezone">America/Los_Angeles</Row>
+          <Row label="Units">lb</Row>
+          <Row label="Version">0.1.0</Row>
+        </dl>
+      </section>
 
       <p className="text-small text-ink-3 mt-10">More settings arrive in phase 4.</p>
     </main>

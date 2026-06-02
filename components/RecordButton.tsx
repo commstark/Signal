@@ -24,10 +24,19 @@ export function RecordButton({ autoLaunch = false, onRecorded }: Props) {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const rafRef = useRef<number | null>(null);
+  // Tracks whether the current start() attempt is auto-launch so we can
+  // silently fall back to idle on permission error rather than alerting.
+  const autoLaunchAttempt = useRef(false);
 
   useEffect(() => {
     if (state === 'launching') {
-      const t = setTimeout(() => setState('idle'), 1500);
+      // Brief moment so the yellow button visually mounts, then actually
+      // start the mic — that's what "auto-record on open" promises. If
+      // permission isn't granted yet, start() falls back to idle silently.
+      const t = setTimeout(() => {
+        autoLaunchAttempt.current = true;
+        void start();
+      }, 350);
       return () => clearTimeout(t);
     }
   }, [state]);
@@ -73,6 +82,13 @@ export function RecordButton({ autoLaunch = false, onRecorded }: Props) {
       setState('recording');
     } catch (err) {
       console.error('mic error', err);
+      // Silent fallback when auto-launched — don't alert someone who
+      // didn't even tap. They can still tap manually.
+      if (autoLaunchAttempt.current) {
+        autoLaunchAttempt.current = false;
+        setState('idle');
+        return;
+      }
       alert('Microphone permission denied. Tap Settings → Safari → Microphone.');
       setState('idle');
     }
