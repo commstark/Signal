@@ -57,7 +57,7 @@ export default function AccountPage() {
         >
           <ArrowLeft size={16} /> Back
         </Link>
-        <h1 className="text-h1 mt-3">Account</h1>
+        <h1 className="text-h1 mt-3">Preferences</h1>
       </header>
 
       <div className="flex-1 px-4 max-w-xl mx-auto w-full space-y-10">
