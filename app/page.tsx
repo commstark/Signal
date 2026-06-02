@@ -28,9 +28,16 @@ interface PrefsHint {
   phrase: string;
 }
 
+const AUTO_RECORD_PREF_KEY = 'signal.autoRecordOnOpen';
+const SESSION_AUTO_FLAG_KEY = 'signal.autoRecordedThisSession';
+
 function HomeInner() {
   const params = useSearchParams();
-  const autoLaunch = params.get('mode') === 'auto';
+  // Either the legacy back-tap shortcut (?mode=auto) OR the per-user
+  // "auto-record on app open" setting (localStorage), gated by a
+  // session flag so it only fires on a fresh app open — not on every
+  // in-app navigation back to /.
+  const [autoLaunch, setAutoLaunch] = useState(() => params.get('mode') === 'auto');
 
   const [captures, setCaptures] = useState<Capture[]>([]);
   // Surfaced when a food log used a vague portion the user hasn't pinned
@@ -45,6 +52,32 @@ function HomeInner() {
     };
     window.addEventListener('online', onOnline);
     return () => window.removeEventListener('online', onOnline);
+  }, []);
+
+  // Auto-record on fresh app open, gated by sessionStorage so it doesn't
+  // fire again every time the user navigates back to / from /today.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let prefOn = false;
+    try {
+      prefOn = localStorage.getItem(AUTO_RECORD_PREF_KEY) === '1';
+    } catch {
+      prefOn = false;
+    }
+    if (!prefOn) return;
+    let alreadyFiredThisSession = false;
+    try {
+      alreadyFiredThisSession = sessionStorage.getItem(SESSION_AUTO_FLAG_KEY) === '1';
+    } catch {
+      alreadyFiredThisSession = false;
+    }
+    if (alreadyFiredThisSession) return;
+    try {
+      sessionStorage.setItem(SESSION_AUTO_FLAG_KEY, '1');
+    } catch {
+      /* private mode — auto fires on every nav, acceptable */
+    }
+    setAutoLaunch(true);
   }, []);
 
   const update = useCallback((id: string, patch: Partial<Capture>) => {
