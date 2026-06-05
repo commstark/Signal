@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
-import { transcribeAudio, whisperCostUsd } from '@/lib/whisper';
+import { transcribeAudio, whisperCostUsd, WhisperError } from '@/lib/whisper';
 import { recordUsage } from '@/lib/usage';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 
@@ -22,7 +22,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'audio blob required' }, { status: 400 });
   }
 
-  const { text, durationSeconds } = await transcribeAudio(file);
+  let text: string;
+  let durationSeconds: number | null;
+  try {
+    const out = await transcribeAudio(file);
+    text = out.text;
+    durationSeconds = out.durationSeconds;
+  } catch (err) {
+    if (err instanceof WhisperError) {
+      console.error(
+        `whisper failed: status=${err.status} code=${err.code} msg=${err.message}`,
+      );
+      // Surface the real reason to the client so the orange dot label
+      // says e.g. "rate limit" instead of just "500".
+      return NextResponse.json(
+        { error: err.message, code: err.code },
+        { status: err.status },
+      );
+    }
+    console.error('whisper unknown error', err);
+    return NextResponse.json({ error: 'Transcription failed.' }, { status: 502 });
+  }
 
   const audioSeconds = durationSeconds ?? estimateDurationFromBytes(file.size);
   const costUsd = whisperCostUsd(audioSeconds);
