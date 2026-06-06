@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requireUser } from '@/lib/auth';
 import { AutoRecordToggle } from '@/components/AutoRecordToggle';
+import { NotificationsPanel } from '@/components/NotificationsPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,8 @@ export default async function SettingsPage() {
         <h2 className="text-h3 mb-3">Capture</h2>
         <AutoRecordToggle />
       </section>
+
+      <NotificationsPanel />
 
       <section>
         <h2 className="text-h3 mb-3">Account</h2>
