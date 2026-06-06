@@ -84,6 +84,23 @@ export async function sendEveningPrompt(userId: string): Promise<void> {
   });
 }
 
+// Test push for manual diagnostics — sends to every registered device.
+// Returns how many we attempted so the caller can tell the user.
+export async function sendTestPush(userId: string): Promise<{ attempted: number }> {
+  const sb = createSupabaseAdmin();
+  const { data } = await sb
+    .from('push_subscriptions')
+    .select('id')
+    .eq('user_id', userId);
+  const attempted = (data ?? []).length;
+  await deliver(userId, {
+    title: 'Signal test',
+    body: 'If you see this, push notifications are working.',
+    url: '/today',
+  });
+  return { attempted };
+}
+
 // Fan-out for the Friday weekly insights cron.
 export async function sendInsightPush(userId: string, insightCount: number): Promise<void> {
   if (insightCount === 0) return;
