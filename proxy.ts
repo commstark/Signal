@@ -9,6 +9,15 @@ export async function proxy(req: NextRequest) {
     path.startsWith('/login') ||
     path.startsWith('/auth') ||
     path.startsWith('/api/debug-config') ||
+    // Cron endpoints authenticate via Authorization: Bearer ${CRON_SECRET}
+    // and run with no Supabase session, so the middleware MUST let them
+    // through. Otherwise Vercel-cron hits this redirect to /login,
+    // never reaches the route handler, and we silently never deliver
+    // a push. The user-facing /api/insights/run-now still goes through
+    // auth — only the cron paths declared in vercel.json are exempt.
+    path.startsWith('/api/insights/weekly') ||
+    path.startsWith('/api/notifications/morning') ||
+    path.startsWith('/api/notifications/evening') ||
     path.startsWith('/manifest.json') ||
     path.startsWith('/sw.js') ||
     path.startsWith('/icons') ||
