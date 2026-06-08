@@ -16,7 +16,7 @@ export async function POST() {
   }
   try {
     const result = await sendTestPush(user.id);
-    return NextResponse.json({ ok: true, attempted: result.attempted });
+    return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'unknown error';
     console.error('test push failed', err);
