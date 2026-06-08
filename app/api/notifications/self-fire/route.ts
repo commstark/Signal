@@ -26,9 +26,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "kind must be 'morning' or 'evening'" }, { status: 400 });
   }
   try {
-    if (body.kind === 'morning') await sendMorningPrompt(user.id);
-    else await sendEveningPrompt(user.id);
-    return NextResponse.json({ ok: true });
+    const result =
+      body.kind === 'morning'
+        ? await sendMorningPrompt(user.id)
+        : await sendEveningPrompt(user.id);
+    return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'unknown error';
     console.error('self-fire failed', err);
