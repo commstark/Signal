@@ -26,6 +26,13 @@
 - **Required env vars**: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (mailto). Generate with `npx web-push generate-vapid-keys`.
 - **Also required**: `CRON_SECRET` (any random string; `openssl rand -base64 32`).
 - iOS only delivers PWA push *after* the user adds Signal to home screen and grants notification permission — first-time experience needs both.
+- **Morning push** (8am local) is a sleep nudge: drops the user on `/today#sleep` so one tap on the pill (horrible/bad/ok/good/great) records sleep without recording a voice note. Evening push is a catch-up reminder for the same tile.
+
+## Sleep tracking
+- 5-step qualitative scale (NOT 1-10): 1=horrible, 2=bad, 3=ok, 4=good, 5=great. Columns on `health_logs`: `sleep_score int (1-5)`, `sleep_descriptor text`, `sleep_hours numeric(4,2)`.
+- Two entry paths: tap-to-log via `SleepTile` on `/today` → `POST /api/sleep/log` writes an entry + health_log row, and voice (`lib/prompts/parse-health.ts` 1a maps "horrible/bad/ok/good/great" + synonyms to 1-5).
+- /today displays the LATEST sleep_score for the day so re-tapping a different band corrects the reading; older rows stay in the log audit trail.
+- Mood tile is removed from /today (user isn't logging mood). `mood_score` column + parser still exist for any insights logic that references it.
 
 ## Production URL
 https://signal-seven-rose.vercel.app — back-tap / Action Button Shortcut should open the bare URL (no `?mode=auto`; redundant).

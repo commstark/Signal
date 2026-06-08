@@ -102,6 +102,11 @@ create table if not exists health_logs (
   energy_score        int check (energy_score between 1 and 10),
   energy_descriptor   text,
   concentration_score int check (concentration_score between 1 and 10),
+  -- Sleep uses a 5-step qualitative scale (1=horrible..5=great), NOT 1-10.
+  -- The /today sleep pill writes via this column; voice notes also land here.
+  sleep_score         int check (sleep_score between 1 and 5),
+  sleep_descriptor    text,
+  sleep_hours         numeric(4,2),
   fullness            text,                                -- 'hungry' | 'satisfied' | 'full' | 'stuffed'
 
   -- symptoms

@@ -85,22 +85,24 @@ async function deliver(userId: string, payload: Payload): Promise<DeliverResult>
   return result;
 }
 
-// Morning check-in: 8am local. Opens the record screen so the user can
-// just tap and talk if they want to log how they slept / how they feel.
+// Morning check-in: 8am local. Drops the user on /today right at the
+// sleep tile so a single tap (horrible/bad/ok/good/great) logs it. The
+// hash deep-link lets the tile auto-scroll into view.
 export async function sendMorningPrompt(userId: string): Promise<DeliverResult> {
   return deliver(userId, {
-    title: 'Good morning',
-    body: 'How did you sleep? Anything off this morning?',
-    url: '/',
+    title: 'How did you sleep?',
+    body: 'Tap to log: horrible · bad · ok · good · great.',
+    url: '/today#sleep',
   });
 }
 
-// Evening check-in: 9pm local. Mood + sleep-aware nudge.
+// Evening check-in: 9pm local. If they forgot to log sleep this morning,
+// they can still do it before bed — same tile.
 export async function sendEveningPrompt(userId: string): Promise<DeliverResult> {
   return deliver(userId, {
     title: 'Quick check-in',
-    body: 'How was your mood today? Notice anything about sleep last night?',
-    url: '/',
+    body: "Log today's sleep if you haven't yet — energy, anything else?",
+    url: '/today#sleep',
   });
 }
 

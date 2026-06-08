@@ -24,7 +24,11 @@ export function demoTodayData(): TodayViewData {
       added_sugars_g: 2,
       carbs_g: 54,
       energy_avg: null,
+      energy_descriptor: null,
       mood_avg: null,
+      sleep_score: 4,
+      sleep_descriptor: 'good',
+      sleep_hours: 7.5,
       entry_count: 1,
     },
     breakdown: [

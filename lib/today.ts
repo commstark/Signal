@@ -52,7 +52,13 @@ export interface TodaySummary {
   added_sugars_g: number;
   carbs_g: number;
   energy_avg: number | null;
+  energy_descriptor: string | null;
   mood_avg: number | null;
+  // Latest sleep log for the day: score (1..5), descriptor (free-form word
+  // the user used or the band label), and optional hours.
+  sleep_score: number | null;
+  sleep_descriptor: string | null;
+  sleep_hours: number | null;
   entry_count: number;
 }
 
@@ -161,11 +167,12 @@ export async function fetchTodayForUser(userId: string, now: Date = new Date()):
   const { data: hl } = await sb
     .from('health_logs')
     .select(
-      'protein_g, calories_kcal, fiber_g, water_ml, sugar_g, added_sugars_g, carbs_g, energy_score, mood_score',
+      'protein_g, calories_kcal, fiber_g, water_ml, sugar_g, added_sugars_g, carbs_g, energy_score, energy_descriptor, mood_score, sleep_score, sleep_descriptor, sleep_hours, occurred_at',
     )
     .eq('user_id', userId)
     .gte('occurred_at', startIso)
-    .lt('occurred_at', endIso);
+    .lt('occurred_at', endIso)
+    .order('occurred_at', { ascending: true });
 
   const { count } = await sb
     .from('entries')
@@ -182,7 +189,14 @@ export async function fetchTodayForUser(userId: string, now: Date = new Date()):
   let addedSugar = 0;
   let carbs = 0;
   const energies: number[] = [];
+  let energyDescriptor: string | null = null;
   const moods: number[] = [];
+  // Sleep: latest row that has a sleep_score wins (re-tapping a different
+  // band shows the corrected value). Rows are ordered ascending, so we
+  // overwrite as we walk.
+  let sleepScore: number | null = null;
+  let sleepDescriptor: string | null = null;
+  let sleepHours: number | null = null;
   for (const r of hl ?? []) {
     protein += Number(r.protein_g ?? 0);
     calories += Number(r.calories_kcal ?? 0);
@@ -192,7 +206,20 @@ export async function fetchTodayForUser(userId: string, now: Date = new Date()):
     addedSugar += Number(r.added_sugars_g ?? 0);
     carbs += Number(r.carbs_g ?? 0);
     if (typeof r.energy_score === 'number') energies.push(r.energy_score);
+    // Latest non-empty descriptor as a fallback when no numeric score was
+    // captured ("felt good" -> descriptor=good, score=null).
+    if (typeof r.energy_descriptor === 'string' && r.energy_descriptor.trim()) {
+      energyDescriptor = r.energy_descriptor.trim();
+    }
     if (typeof r.mood_score === 'number') moods.push(r.mood_score);
+    if (typeof r.sleep_score === 'number') {
+      sleepScore = r.sleep_score;
+      sleepDescriptor = (r.sleep_descriptor as string | null) ?? sleepDescriptor;
+      sleepHours = r.sleep_hours == null ? sleepHours : Number(r.sleep_hours);
+    } else if (r.sleep_hours != null && sleepScore == null) {
+      // Hours without a band — still show the hours readout.
+      sleepHours = Number(r.sleep_hours);
+    }
   }
 
   return {
@@ -205,7 +232,11 @@ export async function fetchTodayForUser(userId: string, now: Date = new Date()):
     added_sugars_g: round(addedSugar),
     carbs_g: round(carbs),
     energy_avg: energies.length ? round(avg(energies)) : null,
+    energy_descriptor: energies.length ? null : energyDescriptor,
     mood_avg: moods.length ? round(avg(moods)) : null,
+    sleep_score: sleepScore,
+    sleep_descriptor: sleepDescriptor,
+    sleep_hours: sleepHours,
     entry_count: count ?? 0,
   };
 }

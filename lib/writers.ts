@@ -29,6 +29,16 @@ function clampScore(v: unknown): number | null {
   return int;
 }
 
+// Sleep uses a 5-step scale instead of 1-10.
+function clampSleepScore(v: unknown): number | null {
+  if (v == null) return null;
+  const n = typeof v === 'string' ? Number(v) : v;
+  if (typeof n !== 'number' || !Number.isFinite(n)) return null;
+  const int = Math.round(n);
+  if (int < 1 || int > 5) return null;
+  return int;
+}
+
 function asEnum<T extends string>(v: unknown, allowed: readonly T[]): T | null {
   if (typeof v !== 'string') return null;
   return (allowed as readonly string[]).includes(v) ? (v as T) : null;
@@ -115,6 +125,9 @@ export async function writeHealthLog(args: {
       energy_score: clampScore(args.parsed.energy?.score),
       energy_descriptor: args.parsed.energy?.descriptor ?? null,
       concentration_score: clampScore(args.parsed.concentration?.score),
+      sleep_score: clampSleepScore(args.parsed.sleep?.score),
+      sleep_descriptor: args.parsed.sleep?.descriptor ?? null,
+      sleep_hours: clampNumeric(args.parsed.sleep?.hours, 24),
       fullness: asEnum(args.parsed.fullness, FULLNESS),
       symptoms: asArray(args.parsed.symptoms),
       water_ml: clampNumeric(args.parsed.water_ml, 30000),

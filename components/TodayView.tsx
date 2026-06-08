@@ -10,6 +10,7 @@ import {
 } from '@/lib/today';
 import { Stat } from '@/components/Stat';
 import { NutritionTile } from '@/components/NutritionTile';
+import { SleepTile } from '@/components/SleepTile';
 import { TranscriptEditor } from '@/components/TranscriptEditor';
 import { StatusDot, type StatusTone } from '@/components/StatusDot';
 import { PendingRefresher } from '@/components/PendingRefresher';
@@ -154,13 +155,25 @@ export function TodayView({
         </div>
       </section>
 
-      <section className="px-4 mt-6 grid grid-cols-2 gap-3">
-        <Stat
-          value={today.energy_avg != null ? today.energy_avg.toFixed(1) : '—'}
-          label="energy avg"
-          meta={`${today.entry_count} entries`}
+      <section
+        id="sleep"
+        className="px-4 mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3 scroll-mt-4"
+      >
+        <SleepTile
+          currentScore={today.sleep_score}
+          currentDescriptor={today.sleep_descriptor}
+          currentHours={today.sleep_hours}
+          readonly={demo || isPast}
         />
-        <Stat value={today.mood_avg != null ? today.mood_avg.toFixed(1) : '—'} label="mood avg" />
+        <Stat
+          value={
+            today.energy_avg != null
+              ? today.energy_avg.toFixed(1)
+              : today.energy_descriptor ?? '—'
+          }
+          label="energy"
+          meta={`${today.entry_count} ${today.entry_count === 1 ? 'entry' : 'entries'}`}
+        />
       </section>
 
       {/* Insights are weekly aggregates, not per-day — only show on today. */}
