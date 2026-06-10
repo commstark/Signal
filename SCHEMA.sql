@@ -431,6 +431,67 @@ create index if not exists api_usage_user_created_idx on api_usage (user_id, cre
 create index if not exists api_usage_service_idx       on api_usage (user_id, service, created_at desc);
 
 -- =====================================================================
+-- Labs — uploaded health-test documents (blood panels, NewAlth, DEXA,
+-- body comp). The PDF / image lives in Supabase Storage bucket
+-- `lab-uploads` under `{user_id}/{upload_id}.{ext}`. Three-tier model:
+--   lab_uploads  — one row per file. parse_status (pending|ok|partial|failed)
+--                  mirrors the entries vocabulary so /labs reuses StatusDot.
+--   lab_panels   — one row per (date, panel_type) — a single PDF can carry
+--                  multiple panel dates if the lab prints trend data.
+--   lab_analytes — raw rows as printed. analyte_key (canonical name) is
+--                  null until the canonicalization pass runs.
+-- =====================================================================
+create table if not exists lab_uploads (
+  id                 uuid primary key default uuid_generate_v4(),
+  user_id            uuid not null references users(id) on delete cascade,
+  file_path          text not null,
+  mime               text not null,
+  original_filename  text,
+  source             text not null check (source in ('pdf', 'image')),
+  extraction_model   text,
+  extracted_at       timestamptz,
+  parse_status       text not null default 'pending'
+                       check (parse_status in ('pending', 'ok', 'partial', 'failed')),
+  parse_warnings     text[] default array[]::text[],
+  raw_extraction     jsonb,
+  created_at         timestamptz not null default now()
+);
+create index if not exists lab_uploads_user_created_idx on lab_uploads (user_id, created_at desc);
+
+create table if not exists lab_panels (
+  id            uuid primary key default uuid_generate_v4(),
+  upload_id     uuid not null references lab_uploads(id) on delete cascade,
+  user_id       uuid not null references users(id) on delete cascade,
+  panel_date    date,
+  panel_type    text,
+  provider      text,
+  lab_name      text,
+  created_at    timestamptz not null default now()
+);
+create index if not exists lab_panels_user_date_idx on lab_panels (user_id, panel_date desc nulls last);
+create index if not exists lab_panels_upload_idx    on lab_panels (upload_id);
+
+create table if not exists lab_analytes (
+  id            uuid primary key default uuid_generate_v4(),
+  panel_id      uuid not null references lab_panels(id) on delete cascade,
+  user_id       uuid not null references users(id) on delete cascade,
+  analyte_key   text,
+  name_raw      text not null,
+  value_num     numeric(12,4),
+  value_text    text,
+  unit          text,
+  ref_low       numeric(12,4),
+  ref_high      numeric(12,4),
+  ref_text      text,
+  flag          text,
+  notes         text,
+  created_at    timestamptz not null default now()
+);
+create index if not exists lab_analytes_panel_idx    on lab_analytes (panel_id);
+create index if not exists lab_analytes_user_key_idx on lab_analytes (user_id, analyte_key, created_at desc)
+  where analyte_key is not null;
+
+-- =====================================================================
 -- Open questions — quick "remember to ask this later" capture from the
 -- record screen. No answers expected — corpus seed for designing the
 -- dashboard and ask agent.

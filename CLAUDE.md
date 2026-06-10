@@ -34,5 +34,17 @@
 - /today displays the LATEST sleep_score for the day so re-tapping a different band corrects the reading; older rows stay in the log audit trail.
 - Mood tile is removed from /today (user isn't logging mood). `mood_score` column + parser still exist for any insights logic that references it.
 
+## Labs pipeline (in progress)
+- **Goal**: upload lab PDFs / screenshots (blood, NewAlth, DEXA, body comp), Claude extracts every analyte, /labs shows trends, weekly insights cross-references diet/sleep/supplements against marker movement.
+- **Optimal-range source**: Huberman guests' published frameworks — Attia's Outlive targets for blood, Galpin lab for DEXA/composition, Norton for protein, Lustig for sugar/metabolic. Each target row cites the source.
+- **Recommendation tone**: specific protocol suggestions (dose + duration + recheck window). Beta users get a single-line "not medical advice" disclaimer on every card.
+- **PR #1 (this one — raw ingestion, no canonicalization)**:
+  - **Tables**: `lab_uploads` (file + parse_status), `lab_panels` (one per (date, panel_type)), `lab_analytes` (rows as printed; `analyte_key` left null for PR #2 canonicalization). Migration `2026-06-09-lab-uploads.sql` — apply manually in Supabase, includes private bucket `lab-uploads` + storage RLS.
+  - **API**: `POST /api/labs/upload` (multipart, max 10MB, PDF/PNG/JPEG/WebP). Inline — uploads to storage, calls Sonnet 4.6, writes panels + analytes, returns `{upload_id, parse_status, panels_written, analytes_written, confidence, warnings}`.
+  - **Engine**: `lib/labs/extract.ts` (PDF document blocks for PDFs, image blocks for screenshots). Prompt is faithful transcription — no canonicalization, no unit conversion, no interpretation.
+  - **UI**: `/labs` (upload zone + uploads list with parse_status), `/labs/[id]` (per-panel analyte table).
+- **PR #2 (next — canonicalization + targets)**: `analyte_catalog` (canonical keys + display names + default units), `analyte_targets` (per-key optimal_low/high + Huberman-guest citation + user override rows), trend sparklines on /labs.
+- **PR #3 (final — recommendations)**: `lab_marker_change` insight kind in `lib/insights/candidates.ts`; protocol-suggestion cards on /today.
+
 ## Production URL
 https://signal-seven-rose.vercel.app — back-tap / Action Button Shortcut should open the bare URL (no `?mode=auto`; redundant).

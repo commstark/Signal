@@ -73,6 +73,12 @@ export function TodayView({
           >
             Signals
           </Link>
+          <Link
+            href="/labs"
+            className="hidden md:inline-block text-small text-ink-2 hover:text-ink font-mono"
+          >
+            Labs
+          </Link>
           <Link href="/ask" className="text-small text-ink-2 hover:text-ink font-mono">
             Ask
           </Link>
