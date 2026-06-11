@@ -33,9 +33,23 @@ Rules:
 3. EXERCISE TYPE — pick the best fit:
    - strength: barbell, dumbbell, kettlebell, machine — anything with weight + reps. (squats, bench, kettlebell swings, dumbbell walks/lunges)
    - cardio: continuous movement at sustained effort. (running, biking, rowing, jump rope/skipping in long sets)
-   - conditioning: high-intensity intervals, sprints, plyometric bursts.
-   - mobility: stretching, foam rolling, "ball work", banded stretches.
+   - conditioning: high-intensity intervals, sprints, plyometric bursts, AND grappling / striking / sport classes (BJJ, judo, wrestling, boxing, muay thai, MMA, soccer, basketball, tennis).
+   - mobility: stretching, foam rolling, "ball work", banded stretches, yoga, pilates.
    - isometric: holds. (dead hangs, planks, wall sits, L-sits)
+
+3a. CLASS-STYLE ENTRIES — when the user names a training activity or class
+    ("jiu-jitsu class", "BJJ", "judo", "boxing", "yoga", "spin class",
+    "soul cycle", "crossfit") WITHOUT structured reps/weights, still emit
+    ONE exercise row so the workout actually gets logged:
+      exercise_name: the activity ("Brazilian Jiu-Jitsu", "Yoga", "Spin class")
+      muscle_group: full_body (default) unless the user names a focus
+      exercise_type: conditioning (BJJ/judo/wrestling/boxing/MMA/sports)
+                     OR mobility (yoga/pilates/stretching class)
+                     OR cardio (long swim/run/cycle/spin without intervals)
+      sets: []  (empty array is fine — no fake sets)
+      duration_min: only if the user states it ("90-minute class" -> 90)
+    Do NOT skip the row because there are no reps; the day-of-training
+    signal matters more than the structured set data for these activities.
 4. NON-WEIGHT METRICS — use the right field, leave others null:
    - dead hang 45 seconds  -> duration_s: 45, weight_lb: null, reps: null
    - 100 skips             -> count: 100, weight_lb: null, reps: null
