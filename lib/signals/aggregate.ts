@@ -104,7 +104,7 @@ export async function loadSignalsBundle(userId: string, days: 7 | 30 | 60 | 90 =
       .gte('start_date', start),
     sb
       .from('supplements')
-      .select('name')
+      .select('name, timing, stack_group')
       .eq('user_id', userId)
       .eq('active', true),
     sb
@@ -123,9 +123,23 @@ export async function loadSignalsBundle(userId: string, days: 7 | 30 | 60 | 90 =
     excludedByDate.set(o.date.slice(0, 10), { excluded: !!o.excluded, reason: o.reason ?? null });
   }
 
-  const activeStack = ((stackRes.data ?? []) as Array<{ name: string }>)
-    .map((s) => String(s.name).trim())
-    .filter(Boolean);
+  // Active stack with timing + stack_group so we can credit "took my
+  // morning stack" against every item in that bucket. Without this, days
+  // logged via a group reference appear as all-missing on /signals even
+  // though /today renders them correctly — the bug behind the user
+  // complaint "showing that I often miss vitamins".
+  const stackItems = ((stackRes.data ?? []) as Array<{
+    name: string;
+    timing: string | null;
+    stack_group: string | null;
+  }>)
+    .map((s) => ({
+      name: String(s.name).trim(),
+      timing: s.timing,
+      stack_group: s.stack_group,
+    }))
+    .filter((s) => s.name);
+  const activeStack = stackItems.map((s) => s.name);
   const stackLowerToCanonical = new Map<string, string>();
   for (const name of activeStack) stackLowerToCanonical.set(name.toLowerCase(), name);
 
@@ -248,24 +262,43 @@ export async function loadSignalsBundle(userId: string, days: 7 | 30 | 60 | 90 =
   const workouts = Array.from(weekMap.values()).sort((a, b) => a.week_start.localeCompare(b.week_start));
   const workout_days = Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date));
 
-  // Per-day take / skip name sets, lowercased for matching against stack.
+  // Per-day take / skip sets, lowercased for matching against stack. We
+  // also track per-day "bucket" references — when the user says "took my
+  // morning stack", the LLM may emit a single supplement_logs row whose
+  // name is the phrase itself, or it may correctly enumerate each item
+  // but miss one. Either way, treating that phrase as evidence the WHOLE
+  // bucket was taken credits all items in that bucket so a small parser
+  // miss doesn't read as missed vitamins on /signals.
   const dayTaken = new Map<string, Set<string>>();
   const daySkipped = new Map<string, Set<string>>();
+  const dayTakenGroups = new Map<string, Set<StackGroup>>();
+  const daySkippedGroups = new Map<string, Set<StackGroup>>();
   for (const s of (supRes.data ?? []) as Array<{
     occurred_at: string;
     taken: boolean | null;
     supplement_name: string | null;
   }>) {
     const d = pstDay(s.occurred_at);
-    const lower = (s.supplement_name ?? '').trim().toLowerCase();
-    if (!lower) continue;
+    const raw = (s.supplement_name ?? '').trim();
+    if (!raw) continue;
+    const group = detectGroupReference(raw);
+    if (group) {
+      const bucket = s.taken ? dayTakenGroups : daySkippedGroups;
+      let set = bucket.get(d);
+      if (!set) {
+        set = new Set();
+        bucket.set(d, set);
+      }
+      set.add(group);
+      continue;
+    }
     const bucket = s.taken ? dayTaken : daySkipped;
     let set = bucket.get(d);
     if (!set) {
       set = new Set();
       bucket.set(d, set);
     }
-    set.add(lower);
+    set.add(raw.toLowerCase());
   }
 
   const adherence: AdherenceCell[] = [];
@@ -274,17 +307,25 @@ export async function loadSignalsBundle(userId: string, days: 7 | 30 | 60 | 90 =
     const d = isoDay(addDays(now, -i));
     const takenSet = dayTaken.get(d) ?? new Set();
     const skippedSet = daySkipped.get(d) ?? new Set();
+    const takenGroups = dayTakenGroups.get(d) ?? new Set();
+    const skippedGroups = daySkippedGroups.get(d) ?? new Set();
     const taken_items: string[] = [];
     const skipped_items: string[] = [];
     const missing_items: string[] = [];
     if (stackSize > 0) {
       // Walk the stack, classifying each by whether the user logged it
-      // taken / skipped / not-at-all that day.
-      for (const name of activeStack) {
-        const lower = name.toLowerCase();
-        if (takenSet.has(lower)) taken_items.push(name);
-        else if (skippedSet.has(lower)) skipped_items.push(name);
-        else missing_items.push(name);
+      // taken / skipped / not-at-all that day. A "took my morning stack"
+      // reference credits every item whose bucket is morning_stack.
+      for (const item of stackItems) {
+        const lower = item.name.toLowerCase();
+        const bucket = bucketFor(item);
+        if (takenSet.has(lower) || takenGroups.has(bucket)) {
+          taken_items.push(item.name);
+        } else if (skippedSet.has(lower) || skippedGroups.has(bucket)) {
+          skipped_items.push(item.name);
+        } else {
+          missing_items.push(item.name);
+        }
       }
     } else {
       // No defined stack yet — fall back to raw log names so the user still
@@ -293,7 +334,8 @@ export async function loadSignalsBundle(userId: string, days: 7 | 30 | 60 | 90 =
       for (const lower of skippedSet) skipped_items.push(stackLowerToCanonical.get(lower) ?? lower);
     }
     const total = stackSize > 0 ? stackSize : taken_items.length + skipped_items.length;
-    const hasAnyLog = takenSet.size + skippedSet.size > 0;
+    const hasAnyLog =
+      takenSet.size + skippedSet.size + takenGroups.size + skippedGroups.size > 0;
     const override = excludedByDate.get(d);
     adherence.push({
       date: d,
@@ -324,6 +366,28 @@ export async function loadSignalsBundle(userId: string, days: 7 | 30 | 60 | 90 =
     adherence,
     interventions,
   };
+}
+
+// Stack-bucket detection — mirrors lib/today.ts. A log whose name reads
+// like "morning vitamin stack" / "took my sleep stack" credits every
+// stack item whose timing/stack_group lands in that bucket. Keep in
+// sync with lib/today.ts:detectGroupReference + bucketFor.
+type StackGroup = 'morning_stack' | 'day_stack' | 'sleep_stack';
+
+function detectGroupReference(name: string): StackGroup | null {
+  const n = name.toLowerCase();
+  const isStackPhrase = /\bstack\b|\bvitamins?\b/.test(n);
+  if (!isStackPhrase) return null;
+  if (/\bmorning\b/.test(n)) return 'morning_stack';
+  if (/\bnight\b|\bsleep\b|\bbedtime\b|\bevening\b/.test(n)) return 'sleep_stack';
+  if (/\bday\b|\bmidday\b|\blunch\b|\bnoon\b/.test(n)) return 'day_stack';
+  return null;
+}
+
+function bucketFor(s: { stack_group: string | null; timing: string | null }): StackGroup {
+  if (s.stack_group === 'morning_stack' || s.timing === 'morning') return 'morning_stack';
+  if (s.stack_group === 'sleep_stack' || s.timing === 'night') return 'sleep_stack';
+  return 'day_stack';
 }
 
 function pstDay(iso: string): string {
