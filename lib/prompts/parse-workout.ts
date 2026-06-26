@@ -37,17 +37,38 @@ Rules:
    - mobility: stretching, foam rolling, "ball work", banded stretches, yoga, pilates.
    - isometric: holds. (dead hangs, planks, wall sits, L-sits)
 
-3a. CLASS-STYLE ENTRIES — when the user names a training activity or class
-    ("jiu-jitsu class", "BJJ", "judo", "boxing", "yoga", "spin class",
-    "soul cycle", "crossfit") WITHOUT structured reps/weights, still emit
-    ONE exercise row so the workout actually gets logged:
-      exercise_name: the activity ("Brazilian Jiu-Jitsu", "Yoga", "Spin class")
-      muscle_group: full_body (default) unless the user names a focus
-      exercise_type: conditioning (BJJ/judo/wrestling/boxing/MMA/sports)
-                     OR mobility (yoga/pilates/stretching class)
-                     OR cardio (long swim/run/cycle/spin without intervals)
-      sets: []  (empty array is fine — no fake sets)
-      duration_min: only if the user states it ("90-minute class" -> 90)
+3a. ACTIVITY ENTRIES (no reps/weights). When the user names a training
+    activity — whether they call it a "class", a "workout", a "session",
+    "rolled", "trained", "did X" or just states the activity outright —
+    ALWAYS emit ONE exercise row so the workout actually gets logged.
+    Triggers include but are not limited to:
+      grappling/striking: jiu-jitsu, BJJ, judo, wrestling, boxing,
+                          muay thai, kickboxing, MMA
+      classes/studios:    yoga, pilates, spin, soul cycle, barre,
+                          crossfit, F45, hot yoga, bootcamp, hyrox
+      endurance/sport:    swim, swam, ran, run, hike, walk (long),
+                          cycle, bike, rowing, ski, snowboard, surf,
+                          climb, climbing, tennis, basketball, soccer,
+                          football, hockey, golf, pickleball, padel
+    Examples:
+      "Jiu-jitsu workout, one hour, good, no injuries" -> ONE row
+        exercise_name: "Brazilian Jiu-Jitsu", muscle_group: full_body,
+        exercise_type: conditioning, duration_min: 60, sets: []
+      "Did yoga this morning, 45 minutes" -> ONE row
+        exercise_name: "Yoga", muscle_group: full_body,
+        exercise_type: mobility, duration_min: 45, sets: []
+      "Went for a 5k" -> ONE row
+        exercise_name: "Run", exercise_type: cardio,
+        sets: [{ distance_m: 5000 }]
+      "Rolled at the academy" -> ONE row
+        exercise_name: "Brazilian Jiu-Jitsu", exercise_type: conditioning
+    Rules:
+      exercise_type: conditioning (grappling/striking/sports), mobility
+                     (yoga/pilates/stretching), cardio (sustained
+                     endurance), or strength (lifting context).
+      muscle_group: full_body unless the user names a focus.
+      sets: [] is fine — do NOT invent reps/weights.
+      duration_min: only if the user states it.
     Do NOT skip the row because there are no reps; the day-of-training
     signal matters more than the structured set data for these activities.
 4. NON-WEIGHT METRICS — use the right field, leave others null:
