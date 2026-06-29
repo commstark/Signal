@@ -29,7 +29,16 @@ Return JSON only, no prose. Schema:
 
 Rules:
 - "health_log": food, mood, energy, symptoms, water, general how-I-feel.
-- "workout_log": exercises, sets, reps, weight, BJJ rounds, lifts.
+- "workout_log": exercises, sets, reps, weight, BJJ rounds, lifts. ALSO
+   any TRAINING ACTIVITY or CLASS even without explicit reps/weight:
+   "jiu-jitsu class", "jujutsu", "BJJ", "judo", "wrestling", "boxing",
+   "muay thai", "kickboxing", "MMA", "yoga", "pilates", "spin class",
+   "soul cycle", "barre", "crossfit", "f45", "hot yoga", "swim", "ran 5k",
+   "went for a run", "long walk", "hike", "rock climbing", "tennis",
+   "basketball", "soccer", "skating", "surf session", "ski day".
+   If the transcript names an activity like this, it IS a workout — even
+   when the rest of the sentence is "good workout, felt tired" with no
+   structured sets.
 - "supplement_log": "took/skipped" a known supplement or stack — AND the
    transcript has no other content (no food, water, mood, etc.). Pills
    typically go down with a cup of water, so a bare "took my vitamins" or
@@ -73,6 +82,14 @@ Rules:
    down with water) AND a supplement adherence log. Running both parsers
    is the only way the protein tile picks up shake/collagen and the
    adherence panel ticks correctly.
+   IMPORTANT: a TRAINING ACTIVITY mentioned alongside ANY other content
+   (water, food, supplements, mood) ALWAYS goes to "mixed", never to
+   "health_log" — otherwise the workout never gets written. Example:
+     "Jiu-jitsu class, good workout, full bottle of water and my creatine"
+     -> "mixed" (workout + supplement + implicit water). NOT "health_log".
+     "Played soccer, then had a chicken sandwich" -> "mixed".
+     "Went for a 5k, felt great" -> "workout_log" (no food/supplement
+     mentioned).
 
 Default bias: treat a transcript as a one-off log unless it contains an
 explicit rule-setting phrase. "I take vitamin E daily" without "from now

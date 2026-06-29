@@ -34,6 +34,7 @@ Return JSON only. Schema:
   "fullness":       "hungry" | "satisfied" | "full" | "stuffed" | null,
   "energy":         { "score": number | null, "descriptor": string | null },
   "concentration":  { "score": number | null, "descriptor": string | null },
+  "sleep":          { "score": 1|2|3|4|5 | null, "descriptor": string | null, "hours": number | null },
   "symptoms": string[],
   "free_text_notes": string | null
 }
@@ -51,6 +52,18 @@ Hard rules — these matter:
    "felt good" -> descriptor "good", score null. NEVER invent a 7.
    "energy was an 8" -> score 8.
    Descriptors are always captured when present.
+
+1a. SLEEP is a 5-step QUALITATIVE scale (1=horrible, 2=bad, 3=ok, 4=good, 5=great).
+    Unlike mood/energy, the descriptor MAPS DIRECTLY to a score:
+      "horrible / terrible / awful / didn't sleep / barely slept" -> 1
+      "bad / poor / rough / restless"                              -> 2
+      "ok / fine / decent / mid / alright"                         -> 3
+      "good / solid"                                               -> 4
+      "great / amazing / excellent / deep / perfect"               -> 5
+    Capture descriptor (the word the user actually said) AND the mapped
+    score. If the user gives a number 1-5, use it directly. If only a
+    duration ("slept 7 hours"), set hours and leave score null unless a
+    quality word is also present. Sleep is null when not mentioned.
 
 2. NUTRITION CONFIDENCE is mandatory, and so is a NUMERIC estimate.
    - "had a turkey sandwich" -> confidence "low", calories/macros are educated guesses.

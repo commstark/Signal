@@ -26,6 +26,25 @@
 - **Required env vars**: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (mailto). Generate with `npx web-push generate-vapid-keys`.
 - **Also required**: `CRON_SECRET` (any random string; `openssl rand -base64 32`).
 - iOS only delivers PWA push *after* the user adds Signal to home screen and grants notification permission — first-time experience needs both.
+- **Morning push** (8am local) is a sleep nudge: drops the user on `/today#sleep` so one tap on the pill (horrible/bad/ok/good/great) records sleep without recording a voice note. Evening push is a catch-up reminder for the same tile.
+
+## Sleep tracking
+- 5-step qualitative scale (NOT 1-10): 1=horrible, 2=bad, 3=ok, 4=good, 5=great. Columns on `health_logs`: `sleep_score int (1-5)`, `sleep_descriptor text`, `sleep_hours numeric(4,2)`.
+- Two entry paths: tap-to-log via `SleepTile` on `/today` → `POST /api/sleep/log` writes an entry + health_log row, and voice (`lib/prompts/parse-health.ts` 1a maps "horrible/bad/ok/good/great" + synonyms to 1-5).
+- /today displays the LATEST sleep_score for the day so re-tapping a different band corrects the reading; older rows stay in the log audit trail.
+- Mood tile is removed from /today (user isn't logging mood). `mood_score` column + parser still exist for any insights logic that references it.
+
+## Labs pipeline (in progress)
+- **Goal**: upload lab PDFs / screenshots (blood, NewAlth, DEXA, body comp), Claude extracts every analyte, /labs shows trends, weekly insights cross-references diet/sleep/supplements against marker movement.
+- **Optimal-range source**: Huberman guests' published frameworks — Attia's Outlive targets for blood, Galpin lab for DEXA/composition, Norton for protein, Lustig for sugar/metabolic. Each target row cites the source.
+- **Recommendation tone**: specific protocol suggestions (dose + duration + recheck window). Beta users get a single-line "not medical advice" disclaimer on every card.
+- **PR #1 (this one — raw ingestion, no canonicalization)**:
+  - **Tables**: `lab_uploads` (file + parse_status), `lab_panels` (one per (date, panel_type)), `lab_analytes` (rows as printed; `analyte_key` left null for PR #2 canonicalization). Migration `2026-06-09-lab-uploads.sql` — apply manually in Supabase, includes private bucket `lab-uploads` + storage RLS.
+  - **API**: `POST /api/labs/upload` (multipart, max 10MB, PDF/PNG/JPEG/WebP). Inline — uploads to storage, calls Sonnet 4.6, writes panels + analytes, returns `{upload_id, parse_status, panels_written, analytes_written, confidence, warnings}`.
+  - **Engine**: `lib/labs/extract.ts` (PDF document blocks for PDFs, image blocks for screenshots). Prompt is faithful transcription — no canonicalization, no unit conversion, no interpretation.
+  - **UI**: `/labs` (upload zone + uploads list with parse_status), `/labs/[id]` (per-panel analyte table).
+- **PR #2 (next — canonicalization + targets)**: `analyte_catalog` (canonical keys + display names + default units), `analyte_targets` (per-key optimal_low/high + Huberman-guest citation + user override rows), trend sparklines on /labs.
+- **PR #3 (final — recommendations)**: `lab_marker_change` insight kind in `lib/insights/candidates.ts`; protocol-suggestion cards on /today.
 
 ## Production URL
 https://signal-seven-rose.vercel.app — back-tap / Action Button Shortcut should open the bare URL (no `?mode=auto`; redundant).

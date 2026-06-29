@@ -33,6 +33,8 @@ export interface HealthLogParsed {
   fullness: 'hungry' | 'satisfied' | 'full' | 'stuffed' | null;
   energy: { score: number | null; descriptor: string | null };
   concentration: { score: number | null; descriptor: string | null };
+  // Sleep score is 1..5 (1=horrible, 5=great), NOT 1..10.
+  sleep: { score: number | null; descriptor: string | null; hours: number | null };
   symptoms: string[];
   free_text_notes: string | null;
 }

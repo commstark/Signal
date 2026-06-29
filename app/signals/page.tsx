@@ -78,7 +78,11 @@ export default async function SignalsPage({
 
           {/* Trends — right (7/12) */}
           <div className="col-span-7 space-y-6">
-            <MacrosChart data={bundle.macros} interventions={bundle.interventions} />
+            <MacrosChart
+              data={bundle.macros}
+              interventions={bundle.interventions}
+              targets={targets}
+            />
             <WorkoutGoalChart
               data={bundle.workout_days}
               weeklyTarget={targets.workouts_per_week}
