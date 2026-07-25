@@ -115,17 +115,21 @@ export async function sendTestPush(userId: string): Promise<DeliverResult> {
   });
 }
 
-// Fan-out for the Friday weekly insights cron.
+// Fan-out for the Friday weekly insights cron. Always fires so the user
+// knows the pipeline ran — zero-insight weeks get a "keep logging" nudge.
 export async function sendInsightPush(
   userId: string,
   insightCount: number,
 ): Promise<DeliverResult> {
-  if (insightCount === 0) {
-    return { attempted: 0, succeeded: 0, removed_dead: 0, errors: [] };
-  }
-  return deliver(userId, {
-    title: insightCount === 1 ? 'New insight ready' : `${insightCount} new insights ready`,
-    body: 'Tap to see what your last week looked like.',
-    url: '/today',
-  });
+  const title =
+    insightCount > 0
+      ? insightCount === 1
+        ? 'New insight ready'
+        : `${insightCount} new insights ready`
+      : 'Weekly reflection complete';
+  const body =
+    insightCount > 0
+      ? 'Tap to see what your last week looked like.'
+      : 'Keep logging this week to unlock patterns.';
+  return deliver(userId, { title, body, url: '/today' });
 }
