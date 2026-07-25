@@ -28,6 +28,9 @@ export async function runWeeklyForUser(userId: string, now = new Date()): Promis
   try {
     const bundle = await aggregateUserData(userId, now);
     if (bundle.daily_aggregates.length < 5) {
+      await sendInsightPush(userId, 0).catch((e) => {
+        console.error('push fan-out failed (low-data path)', e);
+      });
       return {
         user_id: userId,
         candidates_found: 0,
@@ -53,11 +56,9 @@ export async function runWeeklyForUser(userId: string, now = new Date()): Promis
 
     const written = await persistInsights(userId, bundle.window, candidates, insights);
 
-    if (written > 0) {
-      await sendInsightPush(userId, written).catch((e) => {
-        console.error('push fan-out failed', e);
-      });
-    }
+    await sendInsightPush(userId, written).catch((e) => {
+      console.error('push fan-out failed', e);
+    });
 
     return {
       user_id: userId,
