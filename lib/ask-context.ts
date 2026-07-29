@@ -94,7 +94,7 @@ export async function buildContextMarkdown(userId: string, window: AskWindow): P
     sb
       .from('health_logs')
       .select(
-        'id, entry_id, occurred_at, protein_g, calories_kcal, carbs_g, fiber_g, water_ml, mood_score, mood_descriptor, energy_score, energy_descriptor, concentration_score, fullness, symptoms, free_text_notes',
+        'id, entry_id, occurred_at, protein_g, calories_kcal, carbs_g, sugar_g, fiber_g, water_ml, mood_score, mood_descriptor, energy_score, energy_descriptor, concentration_score, fullness, symptoms, free_text_notes',
       )
       .eq('user_id', userId)
       .gte('occurred_at', startIso)
@@ -161,6 +161,7 @@ export async function buildContextMarkdown(userId: string, window: AskWindow): P
   let totalProtein = 0;
   let totalCalories = 0;
   let totalCarbs = 0;
+  let totalSugar = 0;
   let totalFiber = 0;
   let totalWaterMl = 0;
   const energyScores: number[] = [];
@@ -169,6 +170,7 @@ export async function buildContextMarkdown(userId: string, window: AskWindow): P
     totalProtein += Number(h.protein_g ?? 0);
     totalCalories += Number(h.calories_kcal ?? 0);
     totalCarbs += Number(h.carbs_g ?? 0);
+    totalSugar += Number(h.sugar_g ?? 0);
     totalFiber += Number(h.fiber_g ?? 0);
     totalWaterMl += Number(h.water_ml ?? 0);
     if (typeof h.energy_score === 'number') energyScores.push(h.energy_score);
@@ -219,6 +221,7 @@ export async function buildContextMarkdown(userId: string, window: AskWindow): P
   lines.push(`- Protein: ${round1(totalProtein)} g total · ${perDay(totalProtein)} g/day avg`);
   lines.push(`- Calories: ${Math.round(totalCalories)} kcal total · ${Math.round(totalCalories / days)} kcal/day avg`);
   lines.push(`- Carbs: ${round1(totalCarbs)} g total · ${perDay(totalCarbs)} g/day avg`);
+  lines.push(`- Sugar: ${round1(totalSugar)} g total · ${perDay(totalSugar)} g/day avg`);
   lines.push(`- Fiber: ${round1(totalFiber)} g total · ${perDay(totalFiber)} g/day avg`);
   lines.push(`- Water: ${round1(totalWaterMl / 1000)} L total · ${round1(totalWaterMl / 1000 / days)} L/day avg`);
   lines.push(`- Energy avg: ${avgEnergy ?? '—'} / 10 (${energyScores.length} ratings)`);
@@ -357,6 +360,8 @@ export async function buildContextMarkdown(userId: string, window: AskWindow): P
       if (hl) {
         const macros: string[] = [];
         if (hl.protein_g != null) macros.push(`protein ${round1(Number(hl.protein_g))}g`);
+        if (hl.carbs_g != null) macros.push(`${round1(Number(hl.carbs_g))}g carbs`);
+        if (hl.sugar_g != null) macros.push(`${round1(Number(hl.sugar_g))}g sugar`);
         if (hl.calories_kcal != null) macros.push(`${Math.round(Number(hl.calories_kcal))} kcal`);
         if (hl.fiber_g != null) macros.push(`fiber ${round1(Number(hl.fiber_g))}g`);
         if (hl.water_ml != null) macros.push(`water ${round1(Number(hl.water_ml) / 1000)}L`);
