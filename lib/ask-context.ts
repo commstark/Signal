@@ -94,7 +94,7 @@ export async function buildContextMarkdown(userId: string, window: AskWindow): P
     sb
       .from('health_logs')
       .select(
-        'id, entry_id, occurred_at, protein_g, calories_kcal, fiber_g, water_ml, mood_score, mood_descriptor, energy_score, energy_descriptor, concentration_score, fullness, symptoms, free_text_notes',
+        'id, entry_id, occurred_at, protein_g, calories_kcal, carbs_g, fiber_g, water_ml, mood_score, mood_descriptor, energy_score, energy_descriptor, concentration_score, fullness, symptoms, free_text_notes',
       )
       .eq('user_id', userId)
       .gte('occurred_at', startIso)
@@ -160,6 +160,7 @@ export async function buildContextMarkdown(userId: string, window: AskWindow): P
 
   let totalProtein = 0;
   let totalCalories = 0;
+  let totalCarbs = 0;
   let totalFiber = 0;
   let totalWaterMl = 0;
   const energyScores: number[] = [];
@@ -167,6 +168,7 @@ export async function buildContextMarkdown(userId: string, window: AskWindow): P
   for (const h of healthLogs) {
     totalProtein += Number(h.protein_g ?? 0);
     totalCalories += Number(h.calories_kcal ?? 0);
+    totalCarbs += Number(h.carbs_g ?? 0);
     totalFiber += Number(h.fiber_g ?? 0);
     totalWaterMl += Number(h.water_ml ?? 0);
     if (typeof h.energy_score === 'number') energyScores.push(h.energy_score);
@@ -216,6 +218,7 @@ export async function buildContextMarkdown(userId: string, window: AskWindow): P
   lines.push(`- Entries logged: ${entries.length}`);
   lines.push(`- Protein: ${round1(totalProtein)} g total · ${perDay(totalProtein)} g/day avg`);
   lines.push(`- Calories: ${Math.round(totalCalories)} kcal total · ${Math.round(totalCalories / days)} kcal/day avg`);
+  lines.push(`- Carbs: ${round1(totalCarbs)} g total · ${perDay(totalCarbs)} g/day avg`);
   lines.push(`- Fiber: ${round1(totalFiber)} g total · ${perDay(totalFiber)} g/day avg`);
   lines.push(`- Water: ${round1(totalWaterMl / 1000)} L total · ${round1(totalWaterMl / 1000 / days)} L/day avg`);
   lines.push(`- Energy avg: ${avgEnergy ?? '—'} / 10 (${energyScores.length} ratings)`);
