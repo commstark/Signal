@@ -27,6 +27,7 @@ const NUMERIC_METRICS = [
   'water_ml',
   'energy_score',
   'mood_score',
+  'sleep_score',
   'workouts',
 ] as const;
 type NumericMetric = (typeof NUMERIC_METRICS)[number];
@@ -48,6 +49,19 @@ const CORRELATION_PAIRS: Array<{ a: NumericMetric; b: NumericMetric; lag_days: n
   { a: 'workouts', b: 'mood_score', lag_days: 1 },
   { a: 'workouts', b: 'energy_score', lag_days: 1 },
   { a: 'calories_kcal', b: 'energy_score', lag_days: 0 },
+  // Sleep-based pairs — surface signal even when mood/energy aren't logged.
+  { a: 'protein_g', b: 'sleep_score', lag_days: 0 },
+  { a: 'water_ml', b: 'sleep_score', lag_days: 0 },
+  { a: 'carbs_g', b: 'sleep_score', lag_days: 0 },
+  { a: 'sugar_g', b: 'sleep_score', lag_days: 0 },
+  { a: 'calories_kcal', b: 'sleep_score', lag_days: 0 },
+  { a: 'workouts', b: 'sleep_score', lag_days: 1 }, // workout → better sleep next night?
+  { a: 'sleep_score', b: 'workouts', lag_days: 1 }, // good sleep → more likely to work out tomorrow?
+  { a: 'sleep_score', b: 'energy_score', lag_days: 0 },
+  { a: 'sleep_score', b: 'mood_score', lag_days: 0 },
+  // Objective-only pairs (no subjective scores required).
+  { a: 'protein_g', b: 'workouts', lag_days: 1 },
+  { a: 'water_ml', b: 'workouts', lag_days: 0 },
 ];
 
 export function computeCandidates(bundle: UserDataBundle): Candidate[] {
@@ -120,7 +134,7 @@ function pairWithLag(
 
 function workoutDayCompare(bundle: UserDataBundle): Candidate[] {
   const out: Candidate[] = [];
-  for (const outcome of ['energy_score', 'mood_score'] as const) {
+  for (const outcome of ['energy_score', 'mood_score', 'sleep_score'] as const) {
     for (const lag of [0, 1]) {
       const byDate = new Map(bundle.daily_aggregates.map((d) => [d.date, d]));
       const workout: number[] = [];
@@ -165,7 +179,7 @@ function workoutDayCompare(bundle: UserDataBundle): Candidate[] {
       };
       out.push({
         kind: 'group_compare',
-        domains: ['workout', outcome === 'energy_score' ? 'energy' : 'mood'],
+        domains: ['workout', mapOutcomeToDomain(outcome)],
         metrics,
         evidence: { points: [...workoutPts, ...restPts] },
         strength: Math.abs(d),
@@ -175,7 +189,7 @@ function workoutDayCompare(bundle: UserDataBundle): Candidate[] {
   return out;
 }
 
-// ---------- group compare: muscle group → next-day mood/energy ----------
+// ---------- group compare: muscle group → next-day mood/energy/sleep ----------
 
 function muscleGroupCompare(bundle: UserDataBundle): Candidate[] {
   const out: Candidate[] = [];
@@ -193,7 +207,7 @@ function muscleGroupCompare(bundle: UserDataBundle): Candidate[] {
   }
   if (dayMuscle.size < 6) return out;
 
-  for (const outcome of ['mood_score', 'energy_score'] as const) {
+  for (const outcome of ['mood_score', 'energy_score', 'sleep_score'] as const) {
     const byDate = new Map(bundle.daily_aggregates.map((d) => [d.date, d]));
     const groups: Record<string, number[]> = {};
     const pts: Array<{ group: string; value: number; date: string }> = [];
@@ -232,7 +246,7 @@ function muscleGroupCompare(bundle: UserDataBundle): Candidate[] {
     };
     out.push({
       kind: 'group_compare',
-      domains: ['workout', outcome === 'energy_score' ? 'energy' : 'mood'],
+      domains: ['workout', mapOutcomeToDomain(outcome)],
       metrics,
       evidence: { points: pts },
       strength: Math.abs(d),
@@ -250,6 +264,7 @@ function interventionWindows(bundle: UserDataBundle): Candidate[] {
   const OUTCOMES: NumericMetric[] = [
     'energy_score',
     'mood_score',
+    'sleep_score',
     'protein_g',
     'workouts',
     'sugar_g',
@@ -327,19 +342,20 @@ function stackAdherenceOutcome(bundle: UserDataBundle): Candidate[] {
   // Group daily aggregates by ISO week and compute adherence + outcome means.
   const weeks = new Map<
     string,
-    { adherence: number; takes: number; total: number; energy: number[]; mood: number[] }
+    { adherence: number; takes: number; total: number; energy: number[]; mood: number[]; sleep: number[] }
   >();
   for (const d of bundle.daily_aggregates) {
     const week = isoWeek(d.date);
     let w = weeks.get(week);
     if (!w) {
-      w = { adherence: 0, takes: 0, total: 0, energy: [], mood: [] };
+      w = { adherence: 0, takes: 0, total: 0, energy: [], mood: [], sleep: [] };
       weeks.set(week, w);
     }
     w.takes += d.supplement_takes;
     w.total += d.supplement_takes + d.supplement_skips;
     if (d.energy_score != null) w.energy.push(d.energy_score);
     if (d.mood_score != null) w.mood.push(d.mood_score);
+    if (d.sleep_score != null) w.sleep.push(d.sleep_score);
   }
   for (const w of weeks.values()) {
     w.adherence = w.total > 0 ? w.takes / w.total : 0;
@@ -356,7 +372,7 @@ function stackAdherenceOutcome(bundle: UserDataBundle): Candidate[] {
   const high = weekList.filter((w) => w.adherence >= median);
   const low = weekList.filter((w) => w.adherence < median);
 
-  for (const outcome of ['energy', 'mood'] as const) {
+  for (const outcome of ['energy', 'mood', 'sleep'] as const) {
     const hi = high.flatMap((w) => w[outcome]);
     const lo = low.flatMap((w) => w[outcome]);
     if (
@@ -369,7 +385,7 @@ function stackAdherenceOutcome(bundle: UserDataBundle): Candidate[] {
     const metrics: AdherenceOutcomeMetrics = {
       kind: 'adherence_outcome',
       intervention_name: 'stack adherence',
-      outcome: `${outcome}_score`,
+      outcome: outcome === 'sleep' ? 'sleep_score' : `${outcome}_score`,
       high_adherence: {
         mean: round(mean(hi), 2),
         sd: round(sd(hi), 2),
@@ -385,13 +401,13 @@ function stackAdherenceOutcome(bundle: UserDataBundle): Candidate[] {
     };
     out.push({
       kind: 'adherence_outcome',
-      domains: ['supplement', outcome],
+      domains: ['supplement', outcome === 'sleep' ? 'sleep' : outcome],
       metrics,
       evidence: {
         points: weekList.map((w) => ({
           week_start: w.week_start,
           adherence: round(w.adherence, 2),
-          outcome: outcome === 'energy' ? round(mean(w.energy), 2) : round(mean(w.mood), 2),
+          outcome: outcome === 'energy' ? round(mean(w.energy), 2) : outcome === 'mood' ? round(mean(w.mood), 2) : round(mean(w.sleep), 2),
         })),
       },
       strength: Math.abs(d),
@@ -496,6 +512,8 @@ function mapOutcomeToDomain(metric: NumericMetric): string {
       return 'energy';
     case 'mood_score':
       return 'mood';
+    case 'sleep_score':
+      return 'sleep';
     case 'workouts':
       return 'workout';
     default:

@@ -61,7 +61,7 @@ export async function aggregateUserData(userId: string, now = new Date()): Promi
     sb
       .from('health_logs')
       .select(
-        'occurred_at, protein_g, calories_kcal, carbs_g, fiber_g, sugar_g, water_ml, energy_score, mood_score',
+        'occurred_at, protein_g, calories_kcal, carbs_g, fiber_g, sugar_g, water_ml, energy_score, mood_score, sleep_score',
       )
       .eq('user_id', userId)
       .gte('occurred_at', longStart),
@@ -140,6 +140,7 @@ export async function aggregateUserData(userId: string, now = new Date()): Promi
     water_ml: number | null;
     energy_score: number | null;
     mood_score: number | null;
+    sleep_score: number | null;
   }>) {
     const day = pstDay(h.occurred_at);
     const d = ensureDay(dailyMap, day);
@@ -154,6 +155,9 @@ export async function aggregateUserData(userId: string, now = new Date()): Promi
     }
     if (typeof h.mood_score === 'number') {
       d.mood_score = d.mood_score == null ? h.mood_score : (d.mood_score + h.mood_score) / 2;
+    }
+    if (typeof h.sleep_score === 'number') {
+      d.sleep_score = d.sleep_score == null ? h.sleep_score : (d.sleep_score + h.sleep_score) / 2;
     }
   }
   for (const w of recent_workouts) {
@@ -225,6 +229,7 @@ function ensureDay(map: Map<string, DailyAggregate>, date: string): DailyAggrega
       water_ml: 0,
       energy_score: null,
       mood_score: null,
+      sleep_score: null,
       workouts: 0,
       supplement_takes: 0,
       supplement_skips: 0,

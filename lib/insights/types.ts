@@ -160,6 +160,7 @@ export interface DailyAggregate {
   water_ml: number;
   energy_score: number | null;
   mood_score: number | null;
+  sleep_score: number | null; // 1-5 qualitative scale
   // Counts to detect adherence / activity days.
   workouts: number;
   supplement_takes: number;
