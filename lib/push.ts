@@ -96,13 +96,13 @@ export async function sendMorningPrompt(userId: string): Promise<DeliverResult> 
   });
 }
 
-// Evening check-in: 9pm local. If they forgot to log sleep this morning,
-// they can still do it before bed — same tile.
+// Evening check-in: 9pm local. Drops the user on /today#energy so one tap
+// logs how they felt today (Drained → High). Sleep still accessible above it.
 export async function sendEveningPrompt(userId: string): Promise<DeliverResult> {
   return deliver(userId, {
     title: 'Quick check-in',
-    body: "Log today's sleep if you haven't yet — energy, anything else?",
-    url: '/today#sleep',
+    body: "How's your energy today? Tap to log.",
+    url: '/today#energy',
   });
 }
 

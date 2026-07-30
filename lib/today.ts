@@ -53,6 +53,9 @@ export interface TodaySummary {
   carbs_g: number;
   energy_avg: number | null;
   energy_descriptor: string | null;
+  // Latest tap-to-log energy score for today (2/4/6/8/10 from the 5-step
+  // pill). Separate from energy_avg so the tile can show the active band.
+  energy_score: number | null;
   mood_avg: number | null;
   // Latest sleep log for the day: score (1..5), descriptor (free-form word
   // the user used or the band label), and optional hours.
@@ -190,6 +193,9 @@ export async function fetchTodayForUser(userId: string, now: Date = new Date()):
   let carbs = 0;
   const energies: number[] = [];
   let energyDescriptor: string | null = null;
+  // Latest tap-to-log energy score: last row with an energy_score wins,
+  // same pattern as sleep (rows ordered ascending).
+  let energyScore: number | null = null;
   const moods: number[] = [];
   // Sleep: latest row that has a sleep_score wins (re-tapping a different
   // band shows the corrected value). Rows are ordered ascending, so we
@@ -205,7 +211,10 @@ export async function fetchTodayForUser(userId: string, now: Date = new Date()):
     sugar += Number(r.sugar_g ?? 0);
     addedSugar += Number(r.added_sugars_g ?? 0);
     carbs += Number(r.carbs_g ?? 0);
-    if (typeof r.energy_score === 'number') energies.push(r.energy_score);
+    if (typeof r.energy_score === 'number') {
+      energies.push(r.energy_score);
+      energyScore = r.energy_score;
+    }
     // Latest non-empty descriptor as a fallback when no numeric score was
     // captured ("felt good" -> descriptor=good, score=null).
     if (typeof r.energy_descriptor === 'string' && r.energy_descriptor.trim()) {
@@ -233,6 +242,7 @@ export async function fetchTodayForUser(userId: string, now: Date = new Date()):
     carbs_g: round(carbs),
     energy_avg: energies.length ? round(avg(energies)) : null,
     energy_descriptor: energies.length ? null : energyDescriptor,
+    energy_score: energyScore,
     mood_avg: moods.length ? round(avg(moods)) : null,
     sleep_score: sleepScore,
     sleep_descriptor: sleepDescriptor,
